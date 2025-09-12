@@ -303,3 +303,20 @@ def plot_silhouette_bar(per_cluster_scores : pd.Series) :
     ax.set_title("Silhouette Score by Cluster", fontsize = 13, weight = "bold")
     fig.tight_layout()
     return fig
+
+def predict_rule_based_segment(rfm_seg_model, r, f, m):
+    """Predict rule-based segment for a single customer."""
+    
+    # Create DataFrame
+    df = pd.DataFrame([{"Recency": r, "Frequency": f, "Monetary": m}])
+    scored = calculate_rfm_scores(df.copy())
+    segmented = apply_segmentation(scored)
+    return segmented.loc[0, "Segment"]
+
+def predict_kmeans_cluster(kmeans_model, scaler, r, f, m):
+    """Predict KMeans cluster for a single customer."""
+    
+    df = pd.DataFrame([{"Recency": r, "Frequency": f, "Monetary": m}])
+    df_scaled = scaler.transform(df)
+    cluster = kmeans_model.predict(df_scaled)[0]
+    return cluster
