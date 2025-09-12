@@ -237,6 +237,39 @@ if products_file and transactions_file :
         fig_tree = rfm_seg.plot_cluster_treemap(clustered_df, f"Cluster_{k_value}_Normalized")
         st.pyplot(fig_tree)
 
+    # -----------------------------------------
+    # Section 5: Predict Segment for New Input
+    # -----------------------------------------
+    st.header("🔮 Try It Yourself: Find Your Segment")
+    
+    st.markdown("""
+    Enter **Recency (days since last purchase)**, **Frequency (number of purchases)**,  
+    and **Monetary (total spend)** to see which group this customer would belong to.
+    """)
+    
+    col1, col2, col3 = st.columns(3)
+    r = col1.number_input("Recency (days)", min_value=0, max_value=1000, value=50)
+    f = col2.number_input("Frequency", min_value=1, max_value=100, value=5)
+    m = col3.number_input("Monetary ($)", min_value=1, max_value=10000, value=500)
+    
+    if st.button("Predict Segment"):
+        # Rule-based prediction
+        rule_segment = rfm_seg.predict_rule_based_segment(rfm_df, r, f, m)
+        st.success(f"📊 Rule-based Segment: **{rule_segment}**")
+    
+        # KMeans prediction (reuse trained kmeans & scaler)
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.cluster import KMeans
+        
+        scaler = StandardScaler().fit(rfm_df[["Recency","Frequency","Monetary"]])
+        kmeans = KMeans(n_clusters=k_value, random_state=42).fit(
+            scaler.transform(rfm_df[["Recency","Frequency","Monetary"]])
+        )
+        cluster = rfm_seg.predict_kmeans_cluster(kmeans, scaler, r, f, m)
+        st.info(f"🤖 KMeans Cluster: **{cluster}**")
+
+
 else :
     st.warning("⚠️ Please upload both Products and Transactions datasets to continue.")
+
 
