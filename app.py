@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-from src import data_processing_eda as dpe   # Data preprocessing + EDA utils
-from src import rfm_segmentation as rfm_seg  # RFM + clustering utils
+import src.data_processing_eda as dpe   # Data preprocessing + EDA utils
+import src.rfm_segmentation as rfm_seg  # RFM + clustering utils
 
 # -----------------------------------------
 # Streamlit page config
@@ -236,40 +236,65 @@ if products_file and transactions_file :
         st.markdown("**3. Treemap:** A big-picture view of cluster sizes and averages.")
         fig_tree = rfm_seg.plot_cluster_treemap(clustered_df, f"Cluster_{k_value}_Normalized")
         st.pyplot(fig_tree)
+        
+    # -----------------------------------------
+    # Section 5: Define Fixed 4-Cluster Model
+    # -----------------------------------------
+    st.header("🏷️ Interpreting the 4-Cluster Model")
 
-    # -----------------------------------------
-    # Section 5: Predict Segment for New Input
-    # -----------------------------------------
-    st.header("🔮 Try It Yourself: Find Your Segment")
-    
     st.markdown("""
-    Enter **Recency (days since last purchase)**, **Frequency (number of purchases)**,  
-    and **Monetary (total spend)** to see which group this customer would belong to.
+    While you can experiment with any number of clusters above, we also define a **4-cluster model** 
+    that provides meaningful business insights:
+
+    - **Cluster 0 (💎 Top Customers)** – Very recent buyers, purchase frequently, and spend the most.  
+    → They are the *VIP group*, crucial for growth.  
+    - **Cluster 1 (📉 Regular Customers)** – Moderate/low spenders, purchase occasionally.  
+    → Stable revenue source, but less loyalty. Maintenance costs must be considered.  
+    - **Cluster 2 (🌱 High Potential)** – Good frequency and value, but not yet consistent.  
+    → With nurturing campaigns, they can evolve into Loyal Customers or Champions.  
+    - **Cluster 3 (❌ Lost Customers)** – Long time since last purchase, low frequency, low spend.  
+    → They bring almost no current value and require reactivation efforts.  
     """)
-    
+
+    # Train fixed 4-cluster model
+    rfm_scaled_fixed = rfm_seg.scale_rfm(rfm_df)
+    clustered_4 = rfm_seg.run_kmeans(rfm_df.copy(), rfm_scaled_fixed, n_clusters=4)
+
+    st.subheader("📊 Cluster Distribution (k=4)")
+    fig_box_4 = rfm_seg.plot_cluster_boxplots(clustered_4, "Cluster_4_Normalized")
+    st.pyplot(fig_box_4)
+
+    st.subheader("Cluster Treemap (k=4)")
+    fig_tree_4 = rfm_seg.plot_cluster_treemap(clustered_4, "Cluster_4_Normalized")
+    st.pyplot(fig_tree_4)
+
+    # Input prediction with fixed 4-cluster model
+    st.subheader("🔮 Predict with 4-Cluster Model")
     col1, col2, col3 = st.columns(3)
-    r = col1.number_input("Recency (days)", min_value=0, max_value=1000, value=50)
-    f = col2.number_input("Frequency", min_value=1, max_value=100, value=5)
-    m = col3.number_input("Monetary ($)", min_value=1, max_value=10000, value=500)
-    
-    if st.button("Predict Segment"):
-        # Rule-based prediction
-        rule_segment = rfm_seg.predict_rule_based_segment(rfm_df, r, f, m)
-        st.success(f"📊 Rule-based Segment: **{rule_segment}**")
-    
-        # KMeans prediction (reuse trained kmeans & scaler)
+    r4 = col1.number_input("Recency (days)", min_value=0, max_value=1000, value=50, key="r4")
+    f4 = col2.number_input("Frequency", min_value=1, max_value=100, value=5, key="f4")
+    m4 = col3.number_input("Monetary ($)", min_value=1, max_value=10000, value=500, key="m4")
+
+    if st.button("Predict with 4-Cluster Model"):
         from sklearn.preprocessing import StandardScaler
         from sklearn.cluster import KMeans
         
-        scaler = StandardScaler().fit(rfm_df[["Recency","Frequency","Monetary"]])
-        kmeans = KMeans(n_clusters=k_value, random_state=42).fit(
-            scaler.transform(rfm_df[["Recency","Frequency","Monetary"]])
+        scaler4 = StandardScaler().fit(rfm_df[["Recency","Frequency","Monetary"]])
+        kmeans4 = KMeans(n_clusters=4, random_state=42).fit(
+            scaler4.transform(rfm_df[["Recency","Frequency","Monetary"]])
         )
-        cluster = rfm_seg.predict_kmeans_cluster(kmeans, scaler, r, f, m)
-        st.info(f"🤖 KMeans Cluster: **{cluster}**")
-
+        cluster4 = rfm_seg.predict_kmeans_cluster(kmeans4, scaler4, r4, f4, m4)
+        
+        st.success(f"📌 This customer belongs to **Cluster {cluster4}**")
+        
+        explanations = {
+            0: "💎 **Top Customers** – High spend, frequent purchases, and recent activity.",
+            1: "📉 **Regular Customers** – Moderate spenders with occasional purchases.",
+            2: "🌱 **High Potential** – Promising frequency and spend, but not consistent yet.",
+            3: "❌ **Lost Customers** – Low spend, rare purchases, disengaged.",
+        }
+        
+        st.markdown(explanations[cluster4])
 
 else :
     st.warning("⚠️ Please upload both Products and Transactions datasets to continue.")
-
-
