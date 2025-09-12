@@ -7,4 +7,5 @@ pyyaml
 matplotlib
 seaborn
 joblib
+squarify
 openpyxl
