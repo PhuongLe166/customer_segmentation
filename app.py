@@ -240,40 +240,31 @@ if products_file and transactions_file :
     # -----------------------------------------
     # Section 5: Define Fixed 4-Cluster Model
     # -----------------------------------------
-    st.header("🏷️ Interpreting the 4-Cluster Model")
+    st.header("🏷️ Our 4-Cluster Model")
 
     st.markdown("""
-    While you can experiment with any number of clusters above, we also define a **4-cluster model** 
-    that provides meaningful business insights:
+    While you can experiment with any number of clusters above, we already define a standard **4-cluster model**:
 
-    - **Cluster 0 (💎 Top Customers)** – Very recent buyers, purchase frequently, and spend the most.  
-    → They are the *VIP group*, crucial for growth.  
-    - **Cluster 1 (📉 Regular Customers)** – Moderate/low spenders, purchase occasionally.  
-    → Stable revenue source, but less loyalty. Maintenance costs must be considered.  
-    - **Cluster 2 (🌱 High Potential)** – Good frequency and value, but not yet consistent.  
-    → With nurturing campaigns, they can evolve into Loyal Customers or Champions.  
-    - **Cluster 3 (❌ Lost Customers)** – Long time since last purchase, low frequency, low spend.  
-    → They bring almost no current value and require reactivation efforts.  
+    - **Cluster 0 (Top Customers)** – Very recent buyers, purchase frequently, and spend the most.  
+    &rarr; They are the *VIP group*, crucial for growth.  
+    - **Cluster 1 (Regular Customers)** – Moderate/low spenders, purchase occasionally.  
+    &rarr; Stable revenue source, but less loyalty. Maintenance costs must be considered.  
+    - **Cluster 2 (High Potential)** – Good frequency and value, but not yet consistent.  
+    &rarr; With nurturing campaigns, they can evolve into Loyal Customers or Champions.  
+    - **Cluster 3 (Lost Customers)** – Long time since last purchase, low frequency, low spend.  
+    &rarr; They bring almost no current value and require reactivation efforts.  
     """)
 
     # Train fixed 4-cluster model
     rfm_scaled_fixed = rfm_seg.scale_rfm(rfm_df)
     clustered_4 = rfm_seg.run_kmeans(rfm_df.copy(), rfm_scaled_fixed, n_clusters=4)
 
-    st.subheader("📊 Cluster Distribution (k=4)")
-    fig_box_4 = rfm_seg.plot_cluster_boxplots(clustered_4, "Cluster_4_Normalized")
-    st.pyplot(fig_box_4)
-
-    st.subheader("Cluster Treemap (k=4)")
-    fig_tree_4 = rfm_seg.plot_cluster_treemap(clustered_4, "Cluster_4_Normalized")
-    st.pyplot(fig_tree_4)
-
     # Input prediction with fixed 4-cluster model
     st.subheader("🔮 Predict with 4-Cluster Model")
     col1, col2, col3 = st.columns(3)
-    r4 = col1.number_input("Recency (days)", min_value=0, max_value=1000, value=50, key="r4")
-    f4 = col2.number_input("Frequency", min_value=1, max_value=100, value=5, key="f4")
-    m4 = col3.number_input("Monetary ($)", min_value=1, max_value=10000, value=500, key="m4")
+    r4 = col1.number_input("Recency (days)", min_value = 0, max_value = 1000, value = 50, key = "r4")
+    f4 = col2.number_input("Frequency", min_value = 1, max_value = 100, value = 5, key = "f4")
+    m4 = col3.number_input("Monetary ($)", min_value = 1, max_value = 10000, value = 500, key = "m4")
 
     if st.button("Predict with 4-Cluster Model"):
         from sklearn.preprocessing import StandardScaler
@@ -298,4 +289,5 @@ if products_file and transactions_file :
 
 else :
     st.warning("⚠️ Please upload both Products and Transactions datasets to continue.")
+
 
