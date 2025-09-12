@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-import src.data_processing_eda as dpe   # Data preprocessing + EDA utils
-import src.rfm_segmentation as rfm_seg  # RFM + clustering utils
+from src import data_processing_eda as dpe   # Data preprocessing + EDA utils
+from src import rfm_segmentation as rfm_seg  # RFM + clustering utils
 
 # -----------------------------------------
 # Streamlit page config
@@ -239,3 +239,4 @@ if products_file and transactions_file :
 
 else :
     st.warning("⚠️ Please upload both Products and Transactions datasets to continue.")
+
