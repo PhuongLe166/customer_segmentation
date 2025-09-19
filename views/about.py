@@ -9,221 +9,118 @@ def show():
     st.markdown(f"*{PAGE_CONFIG['about']['description']}*")
     st.markdown("---")
     
-    # RFM Overview
-    st.markdown("## 🎯 What is RFM Analysis?")
+    # Instructor
+    st.markdown("## Instructor")
+    st.markdown("**MSc. Khuat Thuy Phuong**")
+    st.markdown("---")
     
+    # Team
+    st.markdown("## Team - Group I")
+    st.markdown("- **Le Thi Ngoc Phuong** (Data Engineering)")
+    st.markdown("- **Pham Hong Phat** (Student)")
+    st.markdown("---")
+    
+    # Work allocation with styled table
+    st.markdown("## Work Allocation")
     st.markdown("""
-    **RFM Analysis** is a proven marketing technique used to quantitatively rank and group customers 
-    based on the recency, frequency and monetary total of their recent transactions to identify the 
-    best customers and perform targeted marketing campaigns.
-    """)
-    
-    # RFM Components
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        ### 🕐 Recency (R)
-        **How recently did the customer purchase?**
-        
-        - Days since last purchase
-        - Lower recency = Better customer
-        - Indicates customer engagement
-        - Key for retention strategies
-        """)
-    
-    with col2:
-        st.markdown("""
-        ### 🔄 Frequency (F)  
-        **How often do they purchase?**
-        
-        - Total number of purchases
-        - Higher frequency = Better customer
-        - Shows customer loyalty
-        - Predicts future behavior
-        """)
-    
-    with col3:
-        st.markdown("""
-        ### 💰 Monetary (M)
-        **How much do they spend?**
-        
-        - Total monetary value
-        - Higher monetary = Better customer  
-        - Indicates customer value
-        - Revenue impact metric
-        """)
-    
+    <style>
+      .about-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        box-shadow: 0 6px 18px rgba(0,0,0,.08);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .about-table thead th {
+        background: linear-gradient(90deg, #1f77b4, #5aa9e6);
+        color: #fff;
+        text-align: left;
+        padding: 12px 16px;
+        font-weight: 600;
+        letter-spacing: .3px;
+      }
+      .about-table tbody td {
+        padding: 12px 16px;
+        background: #fff;
+        border-top: 1px solid #eef2f7;
+      }
+      .about-table tbody tr:hover td { background: #f7fbff; }
+      .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        font-size: 12px;
+        font-weight: 600;
+        background: #e6f2ff;
+        color: #1f77b4;
+        border: 1px solid #cfe6ff;
+      }
+    </style>
+    <table class="about-table">
+      <thead>
+        <tr><th>Task</th><th>Owner(s)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>EDA</td><td><span class="badge">Phuong</span>  <span class="badge">Phat</span></td></tr>
+        <tr><td>Rules-based</td><td><span class="badge">Phuong</span></td></tr>
+        <tr><td>KMeans + Hierarchical Clustering</td><td><span class="badge">Phat</span></td></tr>
+        <tr><td>PySpark</td><td><span class="badge">Phuong</span></td></tr>
+        <tr><td>GUI</td><td><span class="badge">Phuong</span>  <span class="badge">Phat</span></td></tr>
+        <tr><td>Report</td><td><span class="badge">Phuong</span>  <span class="badge">Phat</span></td></tr>
+      </tbody>
+    </table>
+    """, unsafe_allow_html=True)
     st.markdown("---")
     
-    # Methodology
-    st.markdown("## 🔬 Our Methodology")
-    
-    method_tabs = st.tabs(["📊 Data Processing", "🏷️ Segmentation", "🤖 Clustering", "📈 Evaluation"])
-    
-    with method_tabs[0]:
-        st.markdown("""
-        ### Data Processing Pipeline
-        
-        1. **Data Loading & Cleaning**
-           - Load transaction and product data
-           - Standardize column names  
-           - Handle missing values
-           
-        2. **Feature Engineering**
-           - Merge transactions with product data
-           - Calculate transaction amounts
-           - Create unique transaction keys
-           
-        3. **RFM Calculation**
-           - Compute recency (days since last purchase)
-           - Calculate frequency (number of transactions)
-           - Sum monetary value (total spent)
-        """)
-        
-        st.code("""
-        # RFM Calculation Example
-        rfm = transactions.groupby('customer').agg({
-            'date': lambda x: (snapshot_date - x.max()).days,    # Recency
-            'transaction': 'nunique',                            # Frequency  
-            'amount': 'sum'                                      # Monetary
-        })
-        """, language="python")
-    
-    with method_tabs[1]:
-        st.markdown("""
-        ### Rule-Based Segmentation
-        
-        **Customer segments based on RFM scores (1-4 scale):**
-        
-        - **Champions** (444): Best customers - high value, frequent, recent
-        - **Loyal Customers**: High frequency and monetary, may not be recent
-        - **Potential Loyalists**: Recent customers with good frequency
-        - **At Risk**: High-value customers who haven't purchased recently
-        - **Can't Lose Them**: High monetary value but low recency
-        - **Hibernating**: Lowest scores across all dimensions
-        - **Need Attention**: All other customers requiring focus
-        """)
-        
-        # Segment visualization
-        st.markdown("**Segmentation Logic:**")
-        st.code("""
-        def segment_customer(row):
-            if row['R_Score'] == 4 and row['F_Score'] == 4 and row['M_Score'] == 4:
-                return 'Champions'
-            elif row['F_Score'] >= 3 and row['M_Score'] >= 3:
-                return 'Loyal Customers'  
-            elif row['R_Score'] >= 3 and row['F_Score'] >= 2:
-                return 'Potential Loyalists'
-            # ... additional rules
-        """, language="python")
-    
-    with method_tabs[2]:
-        st.markdown("""
-        ### K-Means Clustering
-        
-        **Unsupervised learning approach:**
-        
-        1. **Data Standardization**
-           - Scale RFM features using StandardScaler
-           - Ensure equal feature importance
-           
-        2. **Optimal Cluster Selection**  
-           - Elbow method for inertia analysis
-           - Silhouette score optimization
-           - Business interpretability
-           
-        3. **Cluster Analysis**
-           - Profile each cluster by RFM means
-           - Assign business-friendly labels
-           - Validate cluster quality
-        """)
-        
-        st.code("""
-        # K-Means Implementation
-        from sklearn.cluster import KMeans
-        from sklearn.preprocessing import StandardScaler
-        
-        scaler = StandardScaler()
-        rfm_scaled = scaler.fit_transform(rfm[['Recency', 'Frequency', 'Monetary']])
-        
-        kmeans = KMeans(n_clusters=5, random_state=42)
-        clusters = kmeans.fit_predict(rfm_scaled)
-        """, language="python")
-    
-    with method_tabs[3]:
-        st.markdown("""
-        ### Model Evaluation
-        
-        **Quality Metrics:**
-        
-        - **Silhouette Score**: Measures cluster cohesion and separation
-        - **Elbow Method**: Identifies optimal number of clusters
-        - **Business Validation**: Ensures segments make business sense
-        - **Statistical Analysis**: Cluster size and distribution
-        
-        **Comparison Methods:**
-        - Rule-based vs K-Means clustering
-        - Cross-validation of segment stability  
-        - Business outcome correlation
-        """)
-    
+    # Objectives
+    st.markdown("## Objectives")
+    st.markdown("- Build an end-to-end RFM customer segmentation pipeline")
+    st.markdown("- Compare rule-based segmentation vs. clustering approaches")
+    st.markdown("- Deliver actionable insights to support business decisions")
     st.markdown("---")
     
-    # Project Structure
-    st.markdown("## 🏗️ Project Architecture")
-    
-    architecture_cols = st.columns(2)
-    
-    with architecture_cols[0]:
-        st.markdown("""
-        ### 📁 Code Organization
-        ```
-        rfm_streamlit_app/
-        ├── app.py                 # Main app
-        ├── src/                   # Core logic
-        │   ├── data_processing_eda.py
-        │   └── rfm_segmentation.py
-        ├── pages/                 # UI pages
-        ├── components/            # UI components
-        └── config/                # Settings
-        ```
-        """)
-    
-    with architecture_cols[1]:
-        st.markdown("""
-        ### 🛠️ Technology Stack
-        - **Framework**: Streamlit
-        - **Data Processing**: Pandas, NumPy  
-        - **Visualization**: Matplotlib, Seaborn
-        - **Machine Learning**: Scikit-learn
-        - **Deployment**: Streamlit Cloud
-        """)
-    
-    # Business Impact
-    st.markdown("## 🎯 Business Impact")
-    
-    impact_cols = st.columns(2)
-    
-    with impact_cols[0]:
-        st.success("""
-        **Marketing Benefits**
-        - Targeted campaign strategies
-        - Personalized customer communication  
-        - Improved conversion rates
-        - Optimized marketing spend
-        """)
-    
-    with impact_cols[1]:
-        st.info("""
-        **Business Outcomes**
-        - Increased customer retention
-        - Higher customer lifetime value
-        - Better resource allocation
-        - Data-driven decision making
-        """)
-    
-    # Footer
+    # Pipeline (styled steps)
+    st.markdown("## Pipeline")
+    st.markdown("""
+    <style>
+      .pipeline {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 12px;
+        margin: 8px 0 12px;
+      }
+      .step {
+        background: #ffffff;
+        border: 1px solid #eef2f7;
+        border-radius: 12px;
+        padding: 14px;
+        text-align: center;
+        box-shadow: 0 6px 18px rgba(0,0,0,.06);
+      }
+      .step .num {
+        width: 28px; height: 28px; line-height: 28px;
+        margin: 0 auto 8px; border-radius: 9999px;
+        background: #1f77b4; color: #fff; font-weight: 700;
+      }
+      @media (max-width: 900px) { .pipeline { grid-template-columns: repeat(2, 1fr);} }
+      @media (max-width: 540px) { .pipeline { grid-template-columns: 1fr;} }
+    </style>
+    <div class="pipeline">
+      <div class="step"><div class="num">1</div><div>Data Ingestion</div></div>
+      <div class="step"><div class="num">2</div><div>Preprocessing</div></div>
+      <div class="step"><div class="num">3</div><div>RFM Scoring</div></div>
+      <div class="step"><div class="num">4</div><div>Segmentation</div></div>
+      <div class="step"><div class="num">5</div><div>Dashboard & Report</div></div>
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown("---")
-    st.markdown("### 🚀 Ready to dive into the analysis? Navigate to EDA to start exploring the data!")
+    
+    # Tech Stack
+    st.markdown("## Tech Stack")
+    st.markdown("- Python, Pandas, NumPy")
+    st.markdown("- Scikit-learn (KMeans, Hierarchical Clustering)")
+    st.markdown("- PySpark (large-scale data processing)")
+    st.markdown("- Streamlit (GUI)")
+    st.markdown("- Matplotlib/Seaborn (EDA & Visualization)")
 

@@ -91,7 +91,7 @@ PAGE_CONFIG = {
         "description": "Unlock the power of customer insights through RFM analysis"
     },
     "about": {
-        "title": "About This Project",
+        "title": "About Us",
         "description": "Learn about the methodology and approach used in this analysis"
     },
     "eda": {
