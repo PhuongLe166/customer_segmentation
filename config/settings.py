@@ -105,9 +105,5 @@ PAGE_CONFIG = {
     "bi_dashboard": {
         "title": "Business Intelligence Dashboard",
         "description": "Interactive dashboard with key business metrics"
-    },
-    "deep_insight": {
-        "title": "Deep Insight Analysis", 
-        "description": "Advanced analytics and strategic recommendations"
     }
 }

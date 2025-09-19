@@ -4,7 +4,7 @@ import altair as alt
 from config.settings import PAGE_CONFIG
 import pandas as pd
 from pathlib import Path
-from src.eda_utils import load_datasets, infer_join_keys, merge_datasets, compute_recency_frequency_metrics
+from src.eda_utils import load_datasets, infer_join_keys, merge_datasets, compute_recency_frequency_metrics, compute_transaction_based_metrics
 from src.data_processing_eda import compute_rfm
 
 def show():
@@ -37,7 +37,7 @@ def show():
       .stat-badges { display:flex; gap:8px; margin: 6px 0 8px; flex-wrap: wrap; }
       .stat { background:#f7fbff; border:1px solid #e3f0ff; color:#1f77b4; padding:6px 10px; border-radius:9999px; font-weight:600; font-size:12px; }
       /* KPI cards */
-      .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-top: 10px; }
+      .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; margin-top: 10px; }
       .kpi { background: linear-gradient(180deg, #ffffff, #f9fbff); border: 1px solid #e6effa; border-radius: 14px; padding: 14px 16px; box-shadow: 0 8px 22px rgba(31,119,180,.08); }
       .kpi .label { font-size: 12px; color: #356ea8; font-weight: 700; letter-spacing: .2px; }
       .kpi .value { margin-top: 6px; font-size: 26px; font-weight: 800; color: #123b63; }
@@ -75,21 +75,59 @@ def show():
             how = st.selectbox("Join type", ["inner", "left", "right", "outer"], index=0)
         try:
             merged = merge_datasets(df_transactions, df_products, left_on, right_on, how)
-            # Summary cards FIRST
-            total_tx = int(merged.shape[0])
-            total_revenue = float(merged.get("amount", pd.Series(dtype=float)).sum()) if "amount" in merged.columns else 0.0
-            avg_order_value = float(merged.get("amount", pd.Series(dtype=float)).mean()) if "amount" in merged.columns else 0.0
-            avg_recency, avg_frequency = compute_recency_frequency_metrics(
-                merged, customer_col="Member_number" if "Member_number" in merged.columns else "member_number",
-                date_col="Date" if "Date" in merged.columns else "date",
+            
+            # Calculate transaction-based metrics
+            customer_col = "Member_number" if "Member_number" in merged.columns else "member_number"
+            date_col = "Date" if "Date" in merged.columns else "date"
+            amount_col = "amount"
+            
+            # Use the same RFM calculation as other pages for consistency
+            merged_rfm = merged.copy()
+            merged_rfm = merged_rfm.rename(columns={
+                customer_col: 'member_number', 
+                date_col: 'date'
+            })
+            
+            if 'items' not in merged_rfm.columns:
+                items_col = None
+                for col in merged_rfm.columns:
+                    if 'item' in col.lower():
+                        items_col = col
+                        break
+                if items_col:
+                    merged_rfm['items'] = merged_rfm[items_col]
+                else:
+                    merged_rfm['items'] = 1
+            
+            # Calculate RFM using the same method as other pages
+            rfm = compute_rfm(
+                merged_rfm,
+                customer_col='member_number',
+                date_col='date',
+                amount_col='amount'
             )
+            
+            # Calculate metrics from RFM data for consistency
+            # Total transactions should be unique transactions (customer + date combinations)
+            total_transactions = int(rfm['Frequency'].sum())  # Sum of all customer frequencies = total unique transactions
+            total_revenue = float(merged['amount'].sum())
+            avg_order_value = float(merged['amount'].mean())
+            avg_recency = float(rfm['Recency'].mean())
+            avg_frequency = float(rfm['Frequency'].mean())  # Average transactions per customer
+            avg_monetary = float(rfm['Monetary'].mean())
+            
+            # Debug info to verify calculations
+            import time
+            st.info(f"Debug (Updated {time.strftime('%H:%M:%S')}): RFM customers={len(rfm)}, Total unique transactions={total_transactions}, Avg frequency per customer={avg_frequency:.2f}")
+            
             kpi_html = f"""
             <div class='kpi-grid'>
-              <div class='kpi'><div class='label'>Total Transactions</div><div class='value'>{total_tx:,}</div></div>
+              <div class='kpi'><div class='label'>Total Transactions</div><div class='value'>{total_transactions:,}</div></div>
               <div class='kpi'><div class='label'>Total Revenue</div><div class='value'>${total_revenue:,.0f}</div></div>
               <div class='kpi'><div class='label'>Avg Price per Order</div><div class='value'>${avg_order_value:,.2f}</div></div>
               <div class='kpi'><div class='label'>Avg Recency</div><div class='value'>{avg_recency:,.1f} days</div></div>
               <div class='kpi'><div class='label'>Avg Frequency</div><div class='value'>{avg_frequency:,.1f}</div></div>
+              <div class='kpi'><div class='label'>Avg Monetary</div><div class='value'>${avg_monetary:,.0f}</div></div>
             </div>
             """
             st.markdown(kpi_html, unsafe_allow_html=True)

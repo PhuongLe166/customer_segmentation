@@ -8,7 +8,7 @@ sys.path.append(str(Path(__file__).parent / "components"))
 sys.path.append(str(Path(__file__).parent / "views"))
 
 # Import page components
-from views import introduction, about, eda, model_evaluation, bi_dashboard, deep_insight
+from views import introduction, about, eda, model_evaluation, bi_dashboard
 from components.navigation import setup_navigation, get_current_page
 from components.sidebar import setup_sidebar
 from config.settings import APP_CONFIG
@@ -42,7 +42,6 @@ def main():
             "EDA",
             "Model Evaluation",
             "BI Dashboard",
-            "Deep Insight",
         ]
         if page_param in allowed_pages:
             st.session_state.current_page = page_param
@@ -69,8 +68,6 @@ def main():
         model_evaluation.show()
     elif current_page == "BI Dashboard":
         bi_dashboard.show()
-    elif current_page == "Deep Insight":
-        deep_insight.show()
     else:
         # Default to introduction
         introduction.show()

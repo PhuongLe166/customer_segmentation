@@ -108,3 +108,78 @@ def compute_recency_frequency_metrics(
     return avg_recency, avg_frequency
 
 
+def compute_transaction_based_metrics(
+    df: pd.DataFrame,
+    customer_col: str = "member_number",
+    date_col: str = "date",
+    amount_col: str = "amount",
+) -> Tuple[int, float, float, float, float, float]:
+    """Compute metrics based on unique transactions (customer + date combinations).
+    
+    All metrics are calculated using transaction key = customer + date
+    
+    Returns:
+        - total_transactions: Count of unique transaction keys (customer + date)
+        - total_revenue: Sum of all transaction amounts
+        - avg_order_value: Average amount per transaction
+        - avg_recency: Average days since last transaction per customer
+        - avg_frequency: Average number of unique transactions per customer
+        - avg_monetary: Average total revenue per customer
+    """
+    if date_col not in df.columns or customer_col not in df.columns:
+        return 0, 0.0, 0.0, float("nan"), float("nan"), float("nan")
+    
+    # Convert date column to datetime
+    dates = df[date_col]
+    if not is_datetime(dates):
+        dates = pd.to_datetime(dates, errors="coerce")
+    
+    # Create transaction key (customer + date)
+    df_with_dates = df.copy()
+    df_with_dates['__date__'] = dates
+    
+    # First, aggregate by transaction key (customer + date) to get unique transactions
+    if amount_col in df.columns:
+        transaction_summary = df_with_dates.groupby([customer_col, '__date__']).agg({
+            amount_col: 'sum'  # Sum amount for each unique transaction
+        }).reset_index()
+    else:
+        transaction_summary = df_with_dates.groupby([customer_col, '__date__']).size().reset_index()
+        transaction_summary[amount_col] = 0
+    
+    # Count total unique transactions
+    total_transactions = len(transaction_summary)
+    
+    # Calculate revenue metrics
+    if amount_col in df.columns:
+        total_revenue = float(transaction_summary[amount_col].sum())
+        avg_order_value = float(transaction_summary[amount_col].mean())
+    else:
+        total_revenue = 0.0
+        avg_order_value = 0.0
+    
+    # Calculate customer-level metrics based on unique transactions
+    snapshot_date = dates.max()
+    if pd.isna(snapshot_date):
+        return total_transactions, total_revenue, avg_order_value, float("nan"), float("nan"), float("nan")
+    
+    # Group by customer to calculate RFM-like metrics from unique transactions
+    customer_metrics = transaction_summary.groupby(customer_col).agg({
+        '__date__': ['max', 'count'],  # last transaction date, count of unique transactions
+        amount_col: 'sum'  # total revenue per customer from unique transactions
+    }).reset_index()
+    
+    # Flatten column names
+    customer_metrics.columns = [customer_col, 'last_date', 'frequency', 'monetary']
+    
+    # Calculate recency (days since last transaction)
+    customer_metrics['recency'] = (snapshot_date - customer_metrics['last_date']).dt.days
+    
+    # Calculate averages
+    avg_recency = float(np.nanmean(customer_metrics['recency'])) if len(customer_metrics) else float("nan")
+    avg_frequency = float(np.nanmean(customer_metrics['frequency'])) if len(customer_metrics) else float("nan")
+    avg_monetary = float(np.nanmean(customer_metrics['monetary'])) if len(customer_metrics) else float("nan")
+    
+    return total_transactions, total_revenue, avg_order_value, avg_recency, avg_frequency, avg_monetary
+
+

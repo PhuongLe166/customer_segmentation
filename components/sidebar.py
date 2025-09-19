@@ -22,7 +22,6 @@ def setup_sidebar():
             "EDA",
             "Model Evaluation",
             "BI Dashboard",
-            "Deep Insight",
         ]
         selected = st.selectbox(
             "",
@@ -56,30 +55,16 @@ def page_specific_sidebar(current_page):
     """Add page-specific sidebar controls"""
     
     if current_page == "EDA":
-        st.markdown("### 📊 EDA Controls")
-        
-        # Date range selector
-        if st.checkbox("Custom Date Range"):
-            st.date_input("Start Date")
-            st.date_input("End Date")
-        
-        # Chart options
-        st.selectbox("Chart Type", ["Line", "Bar", "Area"])
+        # EDA Controls removed per request
+        pass
         
     elif current_page == "Model Evaluation":
         # Per request, remove Model Settings from sidebar for Model Evaluation page
         pass
         
     elif current_page == "BI Dashboard":
-        st.markdown("### 📈 Dashboard Filters")
-        
-        # Filters
-        st.multiselect("Customer Segments", 
-                      ["Champions", "Loyal Customers", "Potential Loyalists", 
-                       "At Risk", "Can't Lose Them", "Hibernating", "Need Attention"])
-        
-        st.selectbox("Time Aggregation", ["Daily", "Weekly", "Monthly"])
-        st.checkbox("Show Trends")
+        # Dashboard filters removed per request
+        pass
         
     elif current_page == "Deep Insight":
         st.markdown("### 🔍 Advanced Analytics")

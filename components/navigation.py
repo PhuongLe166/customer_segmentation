@@ -19,7 +19,7 @@ def get_current_page():
 
 def navigate_to(page_name):
     """Navigate programmatically to a specific page"""
-    if page_name in ["Introduction", "About", "EDA", "Model Evaluation", "BI Dashboard", "Deep Insight"]:
+    if page_name in ["Introduction", "About", "EDA", "Model Evaluation", "BI Dashboard"]:
         st.session_state.current_page = page_name
         st.rerun()
     else:
