@@ -49,18 +49,16 @@ def show():
     tab_overview, tab_merge, tab_revenue = st.tabs(["Overview Data", "Merge Datasets", "Revenue Trend"])
     
     with tab_overview:
-        # Two cards side-by-side for a cleaner overview
-        col_tx, col_pd = st.columns(2, gap="large")
-        with col_tx:
-            st.markdown("#### Transactions")
-            st.markdown(f"<div class='stat-badges'><span class='stat'>Rows: {len(df_transactions):,}</span><span class='stat'>Columns: {df_transactions.shape[1]}</span></div>", unsafe_allow_html=True)
-            st.dataframe(df_transactions.head(10), use_container_width=True)
-            
+        # Transactions block
+        st.markdown("#### Transactions")
+        st.markdown(f"<div class='stat-badges'><span class='stat'>Rows: {len(df_transactions):,}</span><span class='stat'>Columns: {df_transactions.shape[1]}</span></div>", unsafe_allow_html=True)
+        st.dataframe(df_transactions.head(10), use_container_width=True)
+        st.markdown("---")
 
-        with col_pd:
-            st.markdown("#### Products")
-            st.markdown(f"<div class='stat-badges'><span class='stat'>Rows: {len(df_products):,}</span><span class='stat'>Columns: {df_products.shape[1]}</span></div>", unsafe_allow_html=True)
-            st.dataframe(df_products.head(10), use_container_width=True)
+        # Products block
+        st.markdown("#### Products")
+        st.markdown(f"<div class='stat-badges'><span class='stat'>Rows: {len(df_products):,}</span><span class='stat'>Columns: {df_products.shape[1]}</span></div>", unsafe_allow_html=True)
+        st.dataframe(df_products.head(10), use_container_width=True)
             
     
     with tab_merge:
