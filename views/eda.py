@@ -46,7 +46,7 @@ def show():
     """, unsafe_allow_html=True)
 
     # Tabs for EDA workflow
-    tab_overview, tab_merge, tab_revenue, tab_category = st.tabs(["Overview Data", "Merge Datasets", "Revenue Trend", "Category/Product Analysis"])
+    tab_overview, tab_merge, tab_revenue, tab_category, tab_rfm = st.tabs(["Overview Data", "Merge Datasets", "Revenue Trend", "Category/Product Analysis", "RFM Analysis"])
     
     with tab_overview:
         # Transactions block
@@ -570,5 +570,141 @@ def show():
 
         else:
             st.warning(f"Required columns not found for {analysis_type}. Please check your data.")
+
+    with tab_rfm:
+        st.markdown("#### RFM Analysis")
+        
+        # Use merged data for RFM analysis
+        left_key, right_key = infer_join_keys(df_transactions, df_products)
+        try:
+            merged_rfm = merge_datasets(df_transactions, df_products, left_key, right_key, "inner")
+        except Exception as e:
+            st.error(f"Merge failed: {e}")
+            return
+
+        # Ensure datetime and amount
+        date_col = "Date" if "Date" in merged_rfm.columns else ("date" if "date" in merged_rfm.columns else None)
+        customer_col = "Member_number" if "Member_number" in merged_rfm.columns else ("member_number" if "member_number" in merged_rfm.columns else None)
+        
+        if date_col is None:
+            st.warning("No date column found for RFM analysis.")
+            return
+        if customer_col is None:
+            st.warning("No customer column found for RFM analysis.")
+            return
+        if "amount" not in merged_rfm.columns:
+            st.warning("No amount column found for RFM analysis.")
+            return
+
+        # Ensure datetime first
+        merged_rfm[date_col] = pd.to_datetime(merged_rfm[date_col], errors="coerce")
+        merged_rfm = merged_rfm.dropna(subset=[date_col, customer_col])
+
+        # Apply date filter if available (after coercion to datetime)
+        if 'start_date' in locals() and 'end_date' in locals():
+            merged_rfm = merged_rfm[
+                (merged_rfm[date_col].dt.date >= start_date) & 
+                (merged_rfm[date_col].dt.date <= end_date)
+            ]
+
+        # Calculate RFM metrics
+        snapshot_date = merged_rfm[date_col].max() + pd.Timedelta(days=1)
+        
+        rfm = merged_rfm.groupby(customer_col).agg({
+            date_col: lambda x: (snapshot_date - x.max()).days,  # Recency
+            customer_col: 'count',  # Frequency
+            'amount': 'sum'  # Monetary
+        }).rename(columns={
+            date_col: 'Recency',
+            customer_col: 'Frequency',
+            'amount': 'Monetary'
+        })
+
+        # RFM Scoring (1-5 scale)
+        rfm['R_Score'] = pd.qcut(rfm['Recency'], 5, labels=[5,4,3,2,1], duplicates='drop')
+        rfm['F_Score'] = pd.qcut(rfm['Frequency'].rank(method='first'), 5, labels=[1,2,3,4,5], duplicates='drop')
+        rfm['M_Score'] = pd.qcut(rfm['Monetary'], 5, labels=[1,2,3,4,5], duplicates='drop')
+
+        # Convert to numeric
+        rfm['R_Score'] = rfm['R_Score'].astype(int)
+        rfm['F_Score'] = rfm['F_Score'].astype(int)
+        rfm['M_Score'] = rfm['M_Score'].astype(int)
+
+        # RFM Score combination
+        rfm['RFM_Score'] = rfm['R_Score'].astype(str) + rfm['F_Score'].astype(str) + rfm['M_Score'].astype(str)
+
+        # Customer Segmentation
+        def segment_customers(rfm):
+            if rfm['R_Score'] >= 4 and rfm['F_Score'] >= 4 and rfm['M_Score'] >= 4:
+                return 'Champions'
+            elif rfm['R_Score'] >= 3 and rfm['F_Score'] >= 3 and rfm['M_Score'] >= 3:
+                return 'Loyal Customers'
+            elif rfm['R_Score'] >= 4 and rfm['F_Score'] <= 2:
+                return 'New Customers'
+            elif rfm['R_Score'] >= 3 and rfm['F_Score'] >= 2 and rfm['M_Score'] >= 2:
+                return 'Potential Loyalists'
+            elif rfm['R_Score'] >= 2 and rfm['F_Score'] >= 2 and rfm['M_Score'] >= 2:
+                return 'Need Attention'
+            elif rfm['R_Score'] <= 2 and rfm['F_Score'] >= 2 and rfm['M_Score'] >= 2:
+                return 'At Risk'
+            elif rfm['R_Score'] <= 2 and rfm['F_Score'] <= 2 and rfm['M_Score'] >= 2:
+                return 'Cannot Lose Them'
+            else:
+                return 'Hibernating'
+
+        rfm['Segment'] = rfm.apply(segment_customers, axis=1)
+
+        # RFM Statistics
+        st.markdown("##### RFM Statistics")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Customers", len(rfm))
+        with col2:
+            st.metric("Avg Recency", f"{rfm['Recency'].mean():.1f} days")
+        with col3:
+            st.metric("Avg Frequency", f"{rfm['Frequency'].mean():.1f}")
+        with col4:
+            st.metric("Avg Monetary", f"${rfm['Monetary'].mean():,.0f}")
+
+        # RFM Distributions (EDA only)
+        st.markdown("##### RFM Distributions (EDA)")
+        bins = st.slider("Number of Bins", 5, 60, 20)
+        rfm_reset = rfm.reset_index()
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            rec_chart = (
+                alt.Chart(rfm_reset)
+                .mark_bar()
+                .encode(
+                    x=alt.X('Recency:Q', bin=alt.Bin(maxbins=bins), title='Recency'),
+                    y=alt.Y('count()', title='Count')
+                )
+                .properties(title='Recency Distribution', height=300)
+            )
+            st.altair_chart(rec_chart, use_container_width=True)
+        with col_b:
+            freq_chart = (
+                alt.Chart(rfm_reset)
+                .mark_bar()
+                .encode(
+                    x=alt.X('Frequency:Q', bin=alt.Bin(maxbins=bins), title='Frequency'),
+                    y=alt.Y('count()', title='Count')
+                )
+                .properties(title='Frequency Distribution', height=300)
+            )
+            st.altair_chart(freq_chart, use_container_width=True)
+        with col_c:
+            mon_chart = (
+                alt.Chart(rfm_reset)
+                .mark_bar()
+                .encode(
+                    x=alt.X('Monetary:Q', bin=alt.Bin(maxbins=bins), title='Monetary'),
+                    y=alt.Y('count()', title='Count')
+                )
+                .properties(title='Monetary Distribution', height=300)
+            )
+            st.altair_chart(mon_chart, use_container_width=True)
+
+        # Note: Removed Customer Segments Distribution, RFM Score Distribution, and Top Customers by Segment as requested
 
 
