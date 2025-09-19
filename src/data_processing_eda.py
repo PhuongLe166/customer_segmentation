@@ -80,17 +80,22 @@ def compute_rfm(df_merged, customer_col = "member_number", date_col = "date", in
 
     df["transaction_key"] = df.apply(generate_transaction_key, axis = 1)
 
+    # First aggregate by transaction_key to get unique transactions
     transactions_agg = (
         df.groupby(["transaction_key", customer_col, date_col])
         .agg(total_items = ("items", "sum"), total_amount = (amount_col, "sum")).reset_index()
     )
 
+    # Reference date = last date in transactions_agg (not original df)
     if snapshot_date is None :
-        snapshot_date = transactions_agg[date_col].max() + pd.Timedelta(days = 1)
+        reference_date = transactions_agg[date_col].max()
+    else:
+        reference_date = snapshot_date
 
+    # Now calculate RFM from transactions_agg
     rfm = (
         transactions_agg.groupby(customer_col).agg(
-            Recency = (date_col, lambda x : (snapshot_date - x.max()).days),
+            Recency = (date_col, lambda x : (reference_date - x.max()).days),
             Frequency = ("transaction_key", "nunique"),
             Monetary = ("total_amount", "sum")
         ).reset_index()
