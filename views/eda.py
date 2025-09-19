@@ -37,7 +37,7 @@ def show():
       .stat-badges { display:flex; gap:8px; margin: 6px 0 8px; flex-wrap: wrap; }
       .stat { background:#f7fbff; border:1px solid #e3f0ff; color:#1f77b4; padding:6px 10px; border-radius:9999px; font-weight:600; font-size:12px; }
       /* KPI cards */
-      .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; margin-top: 10px; }
+      .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 10px; }
       .kpi { background: linear-gradient(180deg, #ffffff, #f9fbff); border: 1px solid #e6effa; border-radius: 14px; padding: 14px 16px; box-shadow: 0 8px 22px rgba(31,119,180,.08); }
       .kpi .label { font-size: 12px; color: #356ea8; font-weight: 700; letter-spacing: .2px; }
       .kpi .value { margin-top: 6px; font-size: 26px; font-weight: 800; color: #123b63; }
