@@ -5,6 +5,7 @@ from config.settings import PAGE_CONFIG
 import pandas as pd
 from pathlib import Path
 from src.eda_utils import load_datasets, infer_join_keys, merge_datasets, compute_recency_frequency_metrics
+from src.data_processing_eda import compute_rfm
 
 def show():
     """Display the EDA page"""
@@ -607,18 +608,29 @@ def show():
                 (merged_rfm[date_col].dt.date <= end_date)
             ]
 
-        # Calculate RFM metrics
-        snapshot_date = merged_rfm[date_col].max() + pd.Timedelta(days=1)
-        
-        rfm = merged_rfm.groupby(customer_col).agg({
-            date_col: lambda x: (snapshot_date - x.max()).days,  # Recency
-            customer_col: 'count',  # Frequency
-            'amount': 'sum'  # Monetary
-        }).rename(columns={
-            date_col: 'Recency',
-            customer_col: 'Frequency',
-            'amount': 'Monetary'
+        # Calculate RFM metrics using the corrected utility (unique transaction = customer+date)
+        merged_rfm_renamed = merged_rfm.rename(columns={
+            customer_col: 'member_number',
+            date_col: 'date'
         })
+        if 'items' not in merged_rfm_renamed.columns:
+            item_like = None
+            for c in merged_rfm_renamed.columns:
+                if 'item' in c.lower():
+                    item_like = c
+                    break
+            if item_like:
+                merged_rfm_renamed['items'] = merged_rfm_renamed[item_like]
+            else:
+                merged_rfm_renamed['items'] = 1
+
+        rfm = compute_rfm(
+            merged_rfm_renamed,
+            customer_col='member_number',
+            date_col='date',
+            amount_col='amount'
+        )
+        rfm = rfm.set_index('member_number')
 
         # RFM Scoring (1-5 scale)
         rfm['R_Score'] = pd.qcut(rfm['Recency'], 5, labels=[5,4,3,2,1], duplicates='drop')
@@ -704,6 +716,8 @@ def show():
                 .properties(title='Monetary Distribution', height=300)
             )
             st.altair_chart(mon_chart, use_container_width=True)
+
+        # Note: Modeling & Evaluation moved to Model Evaluation page
 
         # Note: Removed Customer Segments Distribution, RFM Score Distribution, and Top Customers by Segment as requested
 

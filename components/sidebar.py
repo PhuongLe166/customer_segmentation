@@ -67,15 +67,8 @@ def page_specific_sidebar(current_page):
         st.selectbox("Chart Type", ["Line", "Bar", "Area"])
         
     elif current_page == "Model Evaluation":
-        st.markdown("### 🤖 Model Settings")
-        
-        # Clustering options
-        st.slider("Number of Clusters", 2, 10, 5)
-        st.selectbox("Clustering Method", ["K-Means", "Hierarchical"])
-        
-        # RFM options
-        st.checkbox("Use Log Transform")
-        st.checkbox("Standardize Features")
+        # Per request, remove Model Settings from sidebar for Model Evaluation page
+        pass
         
     elif current_page == "BI Dashboard":
         st.markdown("### 📈 Dashboard Filters")
