@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import pandas as pd
+import numpy as np
+from pandas.api.types import is_datetime64_any_dtype as is_datetime
 
 
 def read_csv(file_or_path: Path | str | bytes) -> pd.DataFrame:
@@ -65,6 +67,46 @@ def merge_datasets(
         raise KeyError(f"Left key '{left_on}' not in transactions columns")
     if right_on not in df_pd.columns:
         raise KeyError(f"Right key '{right_on}' not in products columns")
-    return df_tx.merge(df_pd, how=how, left_on=left_on, right_on=right_on)
+    merged = df_tx.merge(df_pd, how=how, left_on=left_on, right_on=right_on)
+    # Create amount if columns are present
+    if "items" in merged.columns and "price" in merged.columns:
+        try:
+            merged["amount"] = merged["items"].astype(float) * merged["price"].astype(float)
+        except Exception:
+            # If casting fails, leave amount as NaN
+            merged["amount"] = None
+    return merged
+
+
+def compute_recency_frequency_metrics(
+    df: pd.DataFrame,
+    customer_col: str = "member_number",
+    date_col: str = "date",
+) -> Tuple[float, float]:
+    """Compute average recency (days) and average frequency per customer.
+
+    Recency is measured as days since a customer's most recent transaction
+    relative to the dataset snapshot date (max date in df).
+    Frequency is the number of transactions per customer.
+    """
+    if date_col not in df.columns or customer_col not in df.columns:
+        return float("nan"), float("nan")
+
+    dates = df[date_col]
+    if not is_datetime(dates):
+        dates = pd.to_datetime(dates, errors="coerce")
+    snapshot_date = dates.max()
+    if pd.isna(snapshot_date):
+        return float("nan"), float("nan")
+
+    grouped = df.assign(__date__=dates).groupby(customer_col, as_index=False)
+    last_dates = grouped["__date__"].max()
+    recency_days = (snapshot_date - last_dates["__date__"]).dt.days
+    avg_recency = float(np.nanmean(recency_days)) if len(recency_days) else float("nan")
+
+    frequency = df.groupby(customer_col).size()
+    avg_frequency = float(np.nanmean(frequency)) if len(frequency) else float("nan")
+
+    return avg_recency, avg_frequency
 
 
