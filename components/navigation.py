@@ -9,6 +9,7 @@ def setup_navigation():
     
     # Navigation handled by sidebar only (no top tabs or buttons)
     st.markdown("---")
+    # Top area reserved; no controls here now
 
 
 def get_current_page():

@@ -34,20 +34,18 @@ def setup_sidebar():
             st.rerun()
         st.markdown("---")
         
-        # Project info
-        st.markdown("### 📋 Project Info")
-        with st.expander("Dataset Info"):
-            st.write("**Transactions:** 38,765 records")
-            st.write("**Products:** 167 items")
-            st.write("**Time Period:** Variable")
-            st.write("**Customers:** Unique members")
-        
-        with st.expander("Analysis Methods"):
-            st.write("• RFM Analysis")
-            st.write("• Rule-based Segmentation") 
-            st.write("• K-Means Clustering")
-            st.write("• Customer Profiling")
-        
+        # Uploads for EDA shown above EDA Controls
+        if current_page == "EDA":
+            st.markdown("### Upload data files")
+            st.session_state.upload_transactions = st.file_uploader(
+                "Transactions.csv", type=["csv"], key="sidebar_upload_transactions"
+            )
+            st.session_state.upload_products = st.file_uploader(
+                "Products_with_Categories.csv", type=["csv"], key="sidebar_upload_products"
+            )
+            st.markdown("---")
+
+        # Remove Project Info section per request
         st.markdown("---")
         
         # Additional controls based on current page
