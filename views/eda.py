@@ -154,7 +154,53 @@ def show():
                 y=alt.Y("revenue:Q", title="Revenue"),
                 tooltip=["label", alt.Tooltip("revenue:Q", format=",.0f")],
             )
+            .properties(title="Revenue Over Time")
         )
         st.altair_chart(chart, use_container_width=True)
+
+        st.markdown("---")
+
+        # Monthly total vs top 10 categories (always shown)
+        cat_col = None
+        for c in ["category", "Category", "product_category", "ProductCategory"]:
+            if c in merged_tr.columns:
+                cat_col = c
+                break
+        if cat_col is not None:
+            monthly = merged_tr[[date_col, cat_col, "amount"]].copy()
+            monthly[date_col] = pd.to_datetime(monthly[date_col], errors="coerce")
+            monthly = monthly.dropna(subset=[date_col])
+            monthly["month"] = monthly[date_col].dt.to_period("M").dt.start_time
+
+            # Total revenue per month
+            total_rev = monthly.groupby("month", as_index=False)["amount"].sum()
+            total_rev[cat_col] = "Total"
+
+            # Top N categories across whole period
+            top_cats = (
+                monthly.groupby(cat_col)["amount"].sum().sort_values(ascending=False).head(10).index
+            )
+            top_df = monthly[monthly[cat_col].isin(top_cats)]
+            top_df = top_df.groupby(["month", cat_col], as_index=False)["amount"].sum()
+
+            combined = pd.concat([
+                top_df.rename(columns={"amount": "revenue"}),
+                total_rev.rename(columns={"amount": "revenue"}),
+            ], ignore_index=True)
+
+            combined["label"] = combined["month"].dt.strftime("%Y %b")
+
+            chart2 = (
+                alt.Chart(combined)
+                .mark_line(point=False)
+                .encode(
+                    x=alt.X("label:N", sort=list(combined["label"].unique()), title="Month"),
+                    y=alt.Y("revenue:Q", title="Revenue"),
+                    color=alt.Color(f"{cat_col}:N", title="Category"),
+                    tooltip=["label", alt.Tooltip("revenue:Q", format=",.0f"), alt.Tooltip(f"{cat_col}:N")],
+                )
+                .properties(title="Monthly Revenue: Total vs Top 10 Categories")
+            )
+            st.altair_chart(chart2, use_container_width=True)
 
 
