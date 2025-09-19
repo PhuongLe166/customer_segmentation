@@ -249,8 +249,8 @@ def show():
     </style>
     """, unsafe_allow_html=True)
     
-    # First row: Basic KPIs
-    kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
+    # First row: Total metrics (3 columns)
+    kpi1, kpi2, kpi3 = st.columns(3)
     
     with kpi1:
         st.markdown(f"""
@@ -279,6 +279,9 @@ def show():
         </div>
         """, unsafe_allow_html=True)
     
+    # Second row: Percentage metrics (3 columns)
+    kpi4, kpi5, kpi6 = st.columns(3)
+    
     with kpi4:
         st.markdown(f"""
         <div class="kpi-card">
@@ -306,7 +309,8 @@ def show():
         </div>
         """, unsafe_allow_html=True)
     
-    # Second row: RFM KPIs
+    # Third row: RFM KPIs (3 columns on one line)
+    st.markdown("---")
     rfm1, rfm2, rfm3 = st.columns(3)
     
     with rfm1:
@@ -648,4 +652,3 @@ def show():
             'Avg_Monetary_bar': 'Monetary Bar'
         }
     )
-
