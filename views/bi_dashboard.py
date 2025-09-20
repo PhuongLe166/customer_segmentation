@@ -196,7 +196,7 @@ def show():
     st.markdown("### Advanced Analytics")
     
     # Create tabs for different chart types
-    tab_cohort, tab_revenue_orders, tab_customer = st.tabs(["Cohort Analysis", "Revenue & Orders", "Customer Explorer"])
+    tab_cohort, tab_revenue_orders, tab_customer, tab_strategies = st.tabs(["Cohort Analysis", "Revenue & Orders", "Customer Explorer", "Strategies by Segment"])
     
     with tab_cohort:
         st.markdown("#### Cohort Analysis")
@@ -419,6 +419,91 @@ def show():
         
         # Removed scatter chart "Customer vs Population (Recency vs Monetary)" per request
     
+    with tab_strategies:
+        st.markdown("#### Strategies for Each Segment")
+        st.markdown(
+            """
+            <style>
+              .strat-grid { display:grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap:12px; }
+              .strat-card { border:1px solid #e5e7eb; border-radius:14px; padding:12px 14px; box-shadow:0 1px 2px rgba(16,24,40,.06); min-height: 180px; display:flex; flex-direction:column; overflow:auto; }
+              .strat-title { font-weight:800; margin:0 0 8px; font-size:16px; color:#0f172a; }
+              .strat-card ul { margin:8px 0 0 18px; padding:0; }
+              .strat-card li { margin:4px 0; }
+              .strat-card.vip { background:#fff7e6; border-color:#ffd591; }
+              .strat-card.reg { background:#e6f4ff; border-color:#91caff; }
+              .strat-card.pot { background:#ecfdf5; border-color:#86efac; }
+              .strat-card.risk { background:#fff1f2; border-color:#fda4af; }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        # Row 1: VIPs and Regulars
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown(
+                """
+                <div class="strat-card vip">
+                  <div class="strat-title">VIPs & Loyal</div>
+                  <ul>
+                    <li>VIP/Premium membership with exclusive privileges.</li>
+                    <li>Personalized incentives: special discounts, birthday vouchers, early access to new products.</li>
+                    <li>Upsell/Cross‑sell and high‑value bundles.</li>
+                    <li>Track: retention rate, ARPU, VIP program engagement.</li>
+                  </ul>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with c2:
+            st.markdown(
+                """
+                <div class="strat-card reg">
+                  <div class="strat-title">Regulars</div>
+                  <ul>
+                    <li>Maintain purchase frequency with value bundles/combos.</li>
+                    <li>Referral program plus loyalty points.</li>
+                    <li>Emails suggesting substitutes and accessories.</li>
+                    <li>Track: purchase frequency, AOV, retention rate.</li>
+                  </ul>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        # Add vertical space between two rows
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        # Row 2: Potential Loyalists and At-Risk
+        c3, c4 = st.columns(2)
+        with c3:
+            st.markdown(
+                """
+                <div class="strat-card pot">
+                  <div class="strat-title">Potential Loyalists</div>
+                  <ul>
+                    <li>Discount on the next order; small return gift.</li>
+                    <li>Start the loyalty program from the first purchase to build habit.</li>
+                    <li>Email/Remarketing: cart reminders and related product suggestions.</li>
+                    <li>Track: conversion to Loyal and average return interval.</li>
+                  </ul>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with c4:
+            st.markdown(
+                """
+                <div class="strat-card risk">
+                  <div class="strat-title">At‑Risk</div>
+                  <ul>
+                    <li>Selective win‑back campaigns with strong vouchers.</li>
+                    <li>Personalized offers based on history; direct outreach (SMS/Call/Zalo).</li>
+                    <li>Survey churn reasons to improve product and service.</li>
+                    <li>Track: return rate and recovered revenue.</li>
+                  </ul>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
     # Footer
     Footer.render()
     
