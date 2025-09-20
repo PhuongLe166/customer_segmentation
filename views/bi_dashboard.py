@@ -103,6 +103,23 @@ def show():
         )
         st.info(f"📤 Using uploaded files: {tx_name} • {pd_name}")
     
+    # =========================
+    # K-MEANS CLUSTERING (needed for segment slicer)
+    # =========================
+    
+    # Default k = 4 (fixed)
+    k = 4
+    
+    # Perform K-Means clustering using service
+    clustering = service.perform_kmeans_clustering(rfm.copy(), n_clusters=k)
+    if clustering['status'] != 'success':
+        st.error(f"K-Means clustering failed: {clustering.get('error', 'Unknown error')}")
+        return
+    
+    rfm_km = clustering['rfm_clustered_df']
+    clustering_metrics = clustering['clustering_metrics']
+    
+    
     # Key Performance Indicators Section (including RFM)
     
     # Calculate KPIs using service
@@ -122,20 +139,8 @@ def show():
     st.markdown("---")
     
     # =========================
-    # CLUSTERING ANALYSIS
+    # CLUSTERING ANALYSIS (K-Means already performed above)
     # =========================
-    
-    # Default k = 4 (fixed)
-    k = 4
-    
-    # Perform K-Means clustering using service
-    clustering = service.perform_kmeans_clustering(rfm.copy(), n_clusters=k)
-    if clustering['status'] != 'success':
-        st.error(f"K-Means clustering failed: {clustering.get('error', 'Unknown error')}")
-        return
-    
-    rfm_km = clustering['rfm_clustered_df']
-    clustering_metrics = clustering['clustering_metrics']
     
     # =========================
     # TWO CHARTS ON SAME LINE - ALIGNED LAYOUT
@@ -183,6 +188,236 @@ def show():
     
     # Render segment table using component
     TableComponents.render_segment_table(display_seg, "Recency, Frequency and Monetary KPIs per Segment")
+    
+    # =========================
+    # NEW CHARTS SECTION
+    # =========================
+    st.markdown("---")
+    st.markdown("### Advanced Analytics")
+    
+    # Create tabs for different chart types
+    tab_cohort, tab_revenue_orders, tab_customer = st.tabs(["Cohort Analysis", "Revenue & Orders", "Customer Explorer"])
+    
+    with tab_cohort:
+        st.markdown("#### Cohort Analysis")
+        st.markdown("Customer retention analysis showing how customer groups behave over time.")
+        ChartComponents.render_cohort_analysis_chart(merged, "Date", "Member_number")
+    
+    with tab_revenue_orders:
+        st.markdown("#### Revenue & Orders Over Time")
+        st.markdown("Track revenue and order trends with different time granularities.")
+        
+        # Granularity selector
+        granularity = FormComponents.render_granularity_selector()
+        ChartComponents.render_revenue_orders_chart(merged, "Date", granularity)
+    
+    with tab_customer:
+        st.markdown("#### Customer Explorer")
+        st.markdown("Select an existing customer or input a new customer's RFM to see their profile and cluster.")
+        # Scoped styles for nice blocks
+        st.markdown(
+            """
+            <style>
+            .ce-card {border:1px solid #e5e7eb; border-radius:12px; padding:12px 14px; background:#ffffff; box-shadow: 0 1px 2px rgba(16,24,40,.04); margin: 6px 0 14px}
+            .ce-card--scores {background:#f0f7ff; border-color:#cfe3ff}
+            .ce-card--cat {background:#f3fafc; border-color:#cfe8f3}
+            .ce-card--prod {background:#fffaf2; border-color:#f3e2c1}
+            .ce-title {font-weight:800; color:#0f172a; margin:0 0 12px; font-size:16px}
+            .ce-section-title {display:inline-block; font-weight:800; padding:6px 10px; border-radius:10px; margin:0 0 10px;}
+            /* Make Revenue over time title visually consistent with Preferred Categories */
+            .ce-section-title.hist {background:#e6f2fb; color:#0a3d62; border:1px solid #cfe3ff}
+            .ce-section-title.cat {background:#e6f2fb; color:#0a3d62; border:1px solid #cfe3ff}
+            .ce-section-title.prod {background:#fff2df; color:#8a5200; border:1px solid #f3e2c1}
+            .ce-grid {display:grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap:12px;}
+            .ce-tile {background:#ffffff; border:1px solid #e6eaf0; border-radius:12px; padding:14px; box-shadow: 0 1px 2px rgba(16,24,40,.04)}
+            .ce-tile--accent {background:#edf7ff; border-color:#cbe6ff}
+            .ce-tile .value {font-size:24px; font-weight:800; color:#0f172a}
+            .ce-tile .label {margin-top:6px; font-size:12px; color:#475569; font-weight:700; letter-spacing:.2px}
+            /* Match height with side cards (reduced) */
+            .ce-equal {height: 420px; display:flex; flex-direction:column}
+            /* Native Streamlit Altair container styled to look like a card */
+            /* Style the native Streamlit Altair container directly (no extra wrappers) */
+            [data-testid="stAltairChart"]{ 
+              border:1px solid #e5e7eb; border-radius:12px; background:#ffffff; 
+              box-shadow:0 1px 2px rgba(16,24,40,.04); height:420px; overflow:hidden; margin-top:0;
+            }
+            [data-testid="stAltairChart"] svg{height:320px !important}
+            .ce-list {margin:0; padding-left:18px; line-height:1.7; overflow:auto; flex:1}
+            .ce-card .vega-embed, .ce-card .vega-embed > div { width: 100% !important; }
+            .ce-card svg { width: 100% !important; }
+            [data-testid="stAltairChart"] { background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; padding:12px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        import numpy as np
+        import pandas as pd
+        from sklearn.cluster import KMeans
+        from sklearn.preprocessing import StandardScaler
+        
+        # Base RFM data with clusters
+        rfm_base = rfm_km.copy()
+        rfm_base = rfm_base.reset_index().rename(columns={rfm_base.index.name or 'index': 'member_number'})
+        
+        # UI mode
+        mode = st.radio("Mode", ["Existing customer", "New customer"], horizontal=True)
+        
+        # Fit KMeans model on existing RFM (for predicting new customer and consistent cluster naming)
+        X = rfm_base[["Recency", "Frequency", "Monetary"]].values
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
+        kmeans.fit(X_scaled)
+        
+        # Derive cluster names by Monetary mean like other charts
+        centroids = pd.DataFrame(scaler.inverse_transform(kmeans.cluster_centers_), columns=["Recency", "Frequency", "Monetary"])  # inverse to get original units
+        centroid_order = centroids.sort_values("Monetary", ascending=False).index.tolist()
+        cluster_names_map = {centroid_order[0]: 'VIPs', centroid_order[1]: 'Regulars', centroid_order[2]: 'Potential Loyalists', centroid_order[3]: 'At-Risk'}
+        
+        def compute_rfm_scores_single(recency: float, frequency: float, monetary: float) -> dict:
+            q_rec = rfm_base['Recency'].quantile([0.2,0.4,0.6,0.8]).values
+            q_freq = rfm_base['Frequency'].quantile([0.2,0.4,0.6,0.8]).values
+            q_mon = rfm_base['Monetary'].quantile([0.2,0.4,0.6,0.8]).values
+            # Recency lower is better
+            R = 5 - np.searchsorted(q_rec, recency, side='right')
+            F = 1 + np.searchsorted(q_freq, frequency, side='right')
+            M = 1 + np.searchsorted(q_mon, monetary, side='right')
+            R = int(np.clip(R, 1, 5)); F = int(np.clip(F, 1, 5)); M = int(np.clip(M, 1, 5))
+            return {"R": R, "F": F, "M": M, "RFM_Score": f"{R}{F}{M}"}
+        
+        if mode == "Existing customer":
+            cust_ids = rfm_base['member_number'].astype(str).tolist()
+            selected_id = st.selectbox("Customer ID", cust_ids)
+            row = rfm_base[rfm_base['member_number'].astype(str) == selected_id].iloc[0]
+            rec, freq, mon = float(row['Recency']), float(row['Frequency']), float(row['Monetary'])
+            # Predict cluster via model for consistent naming
+            pred = kmeans.predict(scaler.transform([[rec, freq, mon]]))[0]
+            cluster_name = cluster_names_map.get(pred, str(pred))
+            scores = compute_rfm_scores_single(rec, freq, mon)
+        else:
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
+                rec = st.number_input("Recency (days)", min_value=0.0, value=float(rfm_base['Recency'].median()))
+            with col_b:
+                freq = st.number_input("Frequency (orders)", min_value=0.0, value=float(rfm_base['Frequency'].median()))
+            with col_c:
+                mon = st.number_input("Monetary ($)", min_value=0.0, value=float(rfm_base['Monetary'].median()))
+            pred = kmeans.predict(scaler.transform([[rec, freq, mon]]))[0]
+            cluster_name = cluster_names_map.get(pred, str(pred))
+            scores = compute_rfm_scores_single(rec, freq, mon)
+        
+        # Scores + values wrapped in a pretty card
+        st.markdown(
+            f"""
+            <div class="ce-card ce-card--scores">
+              <div class="ce-title">Customer Profile</div>
+              <div class="ce-grid">
+                <div class="ce-tile"><div class="value">{scores['R']}</div><div class="label">R score</div></div>
+                <div class="ce-tile"><div class="value">{scores['F']}</div><div class="label">F score</div></div>
+                <div class="ce-tile"><div class="value">{scores['M']}</div><div class="label">M score</div></div>
+                <div class="ce-tile"><div class="value">{int(rec):,} days</div><div class="label">Recency</div></div>
+                <div class="ce-tile"><div class="value">{int(freq):,}</div><div class="label">Frequency</div></div>
+                <div class="ce-tile"><div class="value">${int(mon):,}</div><div class="label">Monetary</div></div>
+                <div class="ce-tile ce-tile--accent" style="grid-column: span 3; text-align:center"><div class="value">{cluster_name}</div><div class="label">Cluster</div></div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Purchase history and preferences (only for existing customers)
+        if mode == "Existing customer":
+            # Try to detect columns
+            def ensure_amount_column(df):
+                if 'amount' not in df.columns:
+                    if 'items' in df.columns and 'price' in df.columns:
+                        df['amount'] = df['items'] * df['price']
+                return df
+
+            cust_col = 'Member_number' if 'Member_number' in merged.columns else ('member_number' if 'member_number' in merged.columns else None)
+            date_col = 'Date' if 'Date' in merged.columns else ('date' if 'date' in merged.columns else None)
+            cust_df = merged.copy()
+            if date_col:
+                cust_df[date_col] = pd.to_datetime(cust_df[date_col], errors='coerce')
+                cust_df = cust_df.dropna(subset=[date_col])
+            if cust_col:
+                cust_df = cust_df[cust_df[cust_col].astype(str) == str(selected_id)]
+            cust_df = ensure_amount_column(cust_df)
+
+            # Left panel: purchase history; Right panels: favorite categories and common products
+            left, right1, right2 = st.columns([2,1,1])
+            with left:
+                if not cust_df.empty and date_col and 'amount' in cust_df.columns:
+                    tmp = cust_df[[date_col, 'amount']].copy()
+                    tmp['month'] = tmp[date_col].dt.to_period('M').dt.start_time
+                    history = tmp.groupby('month', as_index=False)['amount'].sum().rename(columns={'amount':'revenue'})
+                    history['label'] = history['month'].dt.strftime('%Y %b')
+                    line = (
+                        alt.Chart(history)
+                        .mark_line(point=True, strokeWidth=3, color='#4C78A8')
+                        .encode(
+                            x=alt.X('label:N', sort=list(history['label'].tolist()), title='Month'),
+                            y=alt.Y('revenue:Q', title='Revenue', axis=alt.Axis(format='$,.0f')),
+                            tooltip=['label', alt.Tooltip('revenue:Q', format='$,.0f')]
+                        )
+                        .properties(width=540, height=340, title='Revenue over time')
+                    )
+                    chart_html = line.to_html()
+                    # Inline styles so the title matches Preferred Categories and the chart stays inside the card
+                    # Render only chart; container is styled via CSS selector
+                    st.altair_chart(line, use_container_width=True)
+                else:
+                    st.info('No purchase history available for this customer.')
+            
+            # Detect category and product columns similar to EDA
+            def pick_column(df, candidates):
+                for c in candidates:
+                    if c in df.columns:
+                        return c
+                return None
+            cat_col = pick_column(merged, ["category", "Category", "product_category", "ProductCategory"]) 
+            prod_col = pick_column(merged, [
+                "productName", "ProductName", "product", "Product", "product_name", "item_name", "description", "Description", "sku"
+            ])
+            
+            with right1:
+                if not cust_df.empty and cat_col and 'amount' in cust_df.columns:
+                    top_cats = cust_df.groupby(cat_col)['amount'].sum().sort_values(ascending=False).head(8)
+                    items = "".join([f"<li>{name}</li>" for name, _ in top_cats.items()])
+                    html_block = f"""
+                    <div class='ce-card ce-card--cat ce-equal'>
+                      <div class='ce-section-title cat'>Preferred Categories</div>
+                      <ul class='ce-list'>{items}</ul>
+                    </div>
+                    """
+                    st.markdown(html_block, unsafe_allow_html=True)
+                else:
+                    st.markdown("""
+                    <div class='ce-card ce-card--cat ce-equal'>
+                      <div class='ce-section-title cat'>Preferred Categories</div>
+                      <div>No category data.</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            with right2:
+                if not cust_df.empty and prod_col:
+                    top_prods = cust_df[prod_col].value_counts().head(10)
+                    items = "".join([f"<li>{name}</li>" for name, _ in top_prods.items()])
+                    html_block = f"""
+                    <div class='ce-card ce-card--prod ce-equal'>
+                      <div class='ce-section-title prod'>Frequently Bought Products</div>
+                      <ul class='ce-list'>{items}</ul>
+                    </div>
+                    """
+                    st.markdown(html_block, unsafe_allow_html=True)
+                else:
+                    st.markdown("""
+                    <div class='ce-card ce-card--prod ce-equal'>
+                      <div class='ce-section-title prod'>Frequently Bought Products</div>
+                      <div>No product data.</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        # Removed scatter chart "Customer vs Population (Recency vs Monetary)" per request
     
     # Footer
     Footer.render()

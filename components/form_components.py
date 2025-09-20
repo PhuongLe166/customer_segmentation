@@ -99,7 +99,7 @@ class FormComponents:
         """
         granularity = st.selectbox(
             "Aggregate by",
-            ["Date", "Week", "Month", "Quarter", "Year"],
+            ["Date", "Week", "Month", "Year"],
             index=2,  # Default to Month
             help="Select the time granularity for analysis"
         )
@@ -274,3 +274,111 @@ class FormComponents:
                     label=title,
                     value=value
                 )
+    
+    @staticmethod
+    def render_date_slicer(df: pd.DataFrame, date_col: str = "Date") -> Tuple[Optional[pd.Timestamp], Optional[pd.Timestamp]]:
+        """
+        Render date range slicer for filtering data.
+        
+        Args:
+            df: DataFrame with date data
+            date_col: Name of the date column
+            
+        Returns:
+            Tuple of (start_date, end_date)
+        """
+        if df.empty or date_col not in df.columns:
+            return None, None
+        
+        # Convert to datetime
+        df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+        df = df.dropna(subset=[date_col])
+        
+        if df.empty:
+            return None, None
+        
+        min_date = df[date_col].min().date()
+        max_date = df[date_col].max().date()
+        
+        st.markdown("**Date:**")
+        date_range = st.slider(
+            "Select Date Range",
+            min_value=min_date,
+            max_value=max_date,
+            value=(min_date, max_date),
+            format="YYYY-MM-DD"
+        )
+        
+        return pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
+    
+    @staticmethod
+    def render_compare_slicer() -> str:
+        """
+        Render compare period slicer.
+        
+        Returns:
+            Selected compare option
+        """
+        st.markdown("**Compare:**")
+        compare_option = st.selectbox(
+            "Compare with",
+            ["Previous period", "Previous year", "None"],
+            index=0,
+            label_visibility="collapsed"
+        )
+        return compare_option
+    
+    @staticmethod
+    def render_segment_slicer(rfm_df: pd.DataFrame) -> str:
+        """
+        Render segment slicer for filtering by customer segments.
+        
+        Args:
+            rfm_df: DataFrame with RFM and segment data
+            
+        Returns:
+            Selected segment
+        """
+        st.markdown("**Segments:**")
+        
+        # Get available segments (prioritize K-Means cluster names)
+        if 'Cluster_Name' in rfm_df.columns:
+            available_segments = rfm_df['Cluster_Name'].unique().tolist()
+        elif 'Segment' in rfm_df.columns:
+            available_segments = rfm_df['Segment'].unique().tolist()
+        else:
+            # Create default K-Means cluster segments
+            available_segments = ['VIPs', 'Regulars', 'Potential Loyalists', 'At-Risk']
+        
+        # Add "All Segments" option at the beginning
+        all_segments = ['All Segments'] + available_segments
+        
+        # Create dropdown for segments
+        selected_segment = st.selectbox(
+            "Select Segment",
+            options=all_segments,
+            index=0,  # Default to "All Segments"
+            label_visibility="collapsed"
+        )
+        
+        return selected_segment
+    
+    @staticmethod
+    def render_reset_button() -> bool:
+        """
+        Render reset button for clearing all filters.
+        
+        Returns:
+            True if reset button was clicked
+        """
+        return st.button("Reset", type="secondary")
+    
+    @staticmethod
+    def render_simulate_anomaly_button() -> bool:
+        """
+        Render simulate anomaly button.
+        
+        Returns:
+            True if simulate anomaly button was clicked
+        """
+        return st.button("Simulate anomaly", type="primary")
