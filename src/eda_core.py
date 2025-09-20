@@ -10,6 +10,7 @@ with improved error handling, validation, and performance optimization.
 import pandas as pd
 import numpy as np
 import re
+import io
 from typing import Tuple, Dict, Any, Optional, Union
 from pathlib import Path
 import streamlit as st
@@ -525,16 +526,47 @@ class EDACore:
         """
         Load transactions and products datasets.
         
+        Args:
+            transactions_file: Path to transactions file or file upload object
+            products_file: Path to products file or file upload object
+        
         Returns:
             Tuple of (transactions_df, products_df, transactions_source, products_source)
         """
         default_tx, default_pd = EDACore.load_default_paths()
         
-        tx_src = transactions_file or str(default_tx)
-        pd_src = products_file or str(default_pd)
+        # Handle file upload objects from session state
+        if transactions_file is None:
+            tx_src = str(default_tx)
+            df_tx = EDACore.read_csv(tx_src)
+        else:
+            # Check if it's a file upload object (has .name attribute)
+            if hasattr(transactions_file, 'name'):
+                tx_src = f"Uploaded: {transactions_file.name}"
+                df_tx = EDACore.read_csv(transactions_file)
+            # Check if it's a file content dict from session state
+            elif isinstance(transactions_file, dict) and 'content' in transactions_file:
+                tx_src = f"Uploaded: {transactions_file['name']}"
+                df_tx = EDACore.read_csv(io.BytesIO(transactions_file['content']))
+            else:
+                tx_src = str(transactions_file)
+                df_tx = EDACore.read_csv(tx_src)
         
-        df_tx = EDACore.read_csv(tx_src)
-        df_pd = EDACore.read_csv(pd_src)
+        if products_file is None:
+            pd_src = str(default_pd)
+            df_pd = EDACore.read_csv(pd_src)
+        else:
+            # Check if it's a file upload object (has .name attribute)
+            if hasattr(products_file, 'name'):
+                pd_src = f"Uploaded: {products_file.name}"
+                df_pd = EDACore.read_csv(products_file)
+            # Check if it's a file content dict from session state
+            elif isinstance(products_file, dict) and 'content' in products_file:
+                pd_src = f"Uploaded: {products_file['name']}"
+                df_pd = EDACore.read_csv(io.BytesIO(products_file['content']))
+            else:
+                pd_src = str(products_file)
+                df_pd = EDACore.read_csv(pd_src)
         
         return df_tx, df_pd, tx_src, pd_src
     

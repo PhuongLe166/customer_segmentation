@@ -21,11 +21,13 @@ def show():
         st.markdown("- **Rule-based segmentation (RFM scores)**: Customers are grouped using thresholds on recency, frequency, and monetary values.")
         st.markdown("- **KMeans clustering**: A machine learning algorithm that automatically finds groups of similar customers.")
 
+    # Check if files are uploaded, use default if not
+    transactions_file = getattr(st.session_state, "upload_transactions", None)
+    products_file = getattr(st.session_state, "upload_products", None)
+    
     # Initialize service and load data
     try:
         service = CustomerSegmentationService()
-        transactions_file = getattr(st.session_state, "upload_transactions", None)
-        products_file = getattr(st.session_state, "upload_products", None)
         
         # Load and prepare data
         data_prep = service.load_and_prepare_data(transactions_file, products_file)
@@ -43,6 +45,21 @@ def show():
             return
         
         rfm = rfm_analysis['rfm_df']
+        
+        # Status messages with file source info
+        if transactions_file is None and products_file is None:
+            st.info("📁 Using default files from data/raw/")
+        else:
+            # Show specific file names
+            tx_name = "Default" if transactions_file is None else (
+                transactions_file['name'] if isinstance(transactions_file, dict) else 
+                getattr(transactions_file, 'name', 'Unknown')
+            )
+            pd_name = "Default" if products_file is None else (
+                products_file['name'] if isinstance(products_file, dict) else 
+                getattr(products_file, 'name', 'Unknown')
+            )
+            st.info(f"📤 Using uploaded files: {tx_name} • {pd_name}")
         
         # Calculate KPIs using service
         kpis = service.calculate_kpis(merged, rfm)

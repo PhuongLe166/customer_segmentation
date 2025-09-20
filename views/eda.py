@@ -47,8 +47,22 @@ def show():
         st.error(f"Service initialization failed: {e}")
         return
     
-    # Status messages
-    st.success(f"✅ Data loaded: {len(df_transactions):,} transactions • {len(df_products):,} products")
+    # Status messages with file source info
+    if transactions_file is None and products_file is None:
+        st.info("📁 Using default files from data/raw/")
+        st.success(f"✅ Data loaded: {len(df_transactions):,} transactions • {len(df_products):,} products")
+    else:
+        # Show specific file names
+        tx_name = "Default" if transactions_file is None else (
+            transactions_file['name'] if isinstance(transactions_file, dict) else 
+            getattr(transactions_file, 'name', 'Unknown')
+        )
+        pd_name = "Default" if products_file is None else (
+            products_file['name'] if isinstance(products_file, dict) else 
+            getattr(products_file, 'name', 'Unknown')
+        )
+        st.info(f"📤 Using uploaded files: {tx_name} • {pd_name}")
+        st.success(f"✅ Data loaded: {len(df_transactions):,} transactions • {len(df_products):,} products")
     # Light CSS for nicer tables/sections
     st.markdown("""
     <style>

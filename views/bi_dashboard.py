@@ -12,11 +12,13 @@ def show():
     st.markdown(f"*{PAGE_CONFIG['bi_dashboard']['description']}*")
     st.markdown("---")
     
+    # Check if files are uploaded, use default if not
+    transactions_file = getattr(st.session_state, "upload_transactions", None)
+    products_file = getattr(st.session_state, "upload_products", None)
+    
     # Initialize service and load data
     try:
         service = CustomerSegmentationService()
-        transactions_file = getattr(st.session_state, "upload_transactions", None)
-        products_file = getattr(st.session_state, "upload_products", None)
         
         # Load and prepare data
         data_prep = service.load_and_prepare_data(transactions_file, products_file)
@@ -39,6 +41,21 @@ def show():
         st.error(f"Service initialization failed: {e}")
         return
 
+    # Status messages with file source info
+    if transactions_file is None and products_file is None:
+        st.info("📁 Using default files from data/raw/")
+    else:
+        # Show specific file names
+        tx_name = "Default" if transactions_file is None else (
+            transactions_file['name'] if isinstance(transactions_file, dict) else 
+            getattr(transactions_file, 'name', 'Unknown')
+        )
+        pd_name = "Default" if products_file is None else (
+            products_file['name'] if isinstance(products_file, dict) else 
+            getattr(products_file, 'name', 'Unknown')
+        )
+        st.info(f"📤 Using uploaded files: {tx_name} • {pd_name}")
+    
     # Key Performance Indicators Section (including RFM)
     st.markdown("### Key Performance Indicators")
     
@@ -59,9 +76,8 @@ def show():
     st.markdown("---")
     
     # =========================
-    # K-MEANS CLUSTERING
+    # CLUSTERING ANALYSIS
     # =========================
-    st.markdown("### K-Means Clustering")
     
     # Default k = 4 (can be adjusted by user)
     k = FormComponents.render_cluster_selector(min_clusters=2, max_clusters=10, default=4)
@@ -75,50 +91,6 @@ def show():
     rfm_km = clustering['rfm_clustered_df']
     clustering_metrics = clustering['clustering_metrics']
     
-    sil = clustering_metrics['silhouette_score']
-    dbi = clustering_metrics['davies_bouldin_score']
-    
-    # Custom CSS for metric cards
-    st.markdown("""
-    <style>
-    .metric-card {
-        background-color: #f8f9fa;
-        border: 2px solid #e9ecef;
-        border-radius: 8px;
-        padding: 20px;
-        margin: 10px 0;
-        text-align: left;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .metric-title {
-        font-size: 14px;
-        font-weight: bold;
-        color: #495057;
-        margin-bottom: 5px;
-    }
-    .metric-value {
-        font-size: 24px;
-        font-weight: bold;
-        color: #007bff;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-title">Silhouette Score</div>
-            <div class="metric-value">{sil:.3f}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-title">Davies-Bouldin Index</div>
-            <div class="metric-value">{dbi:.3f}</div>
-        </div>
-        """, unsafe_allow_html=True)
     
     # Create visualizations for K-Means clustering
     clustering_visualizations = service.create_visualizations({

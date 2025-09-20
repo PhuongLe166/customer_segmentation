@@ -37,28 +37,52 @@ def setup_sidebar():
         if current_page in ["EDA", "Model Evaluation", "BI Dashboard"]:
             st.markdown("### Upload data files")
             
-            # File uploaders
-            uploaded_transactions = st.file_uploader(
-                "Transactions.csv", type=["csv"], key="sidebar_upload_transactions"
-            )
-            uploaded_products = st.file_uploader(
-                "Products_with_Categories.csv", type=["csv"], key="sidebar_upload_products"
-            )
+            # Check if files are already uploaded
+            has_transactions = hasattr(st.session_state, 'upload_transactions') and st.session_state.upload_transactions is not None
+            has_products = hasattr(st.session_state, 'upload_products') and st.session_state.upload_products is not None
             
-            # Apply button
-            if st.button("Apply", key="apply_uploads", type="primary"):
-                if uploaded_transactions is not None:
-                    st.session_state.upload_transactions = uploaded_transactions
-                if uploaded_products is not None:
-                    st.session_state.upload_products = uploaded_products
-                st.success("Files applied successfully!")
-                st.rerun()
-            
-            # Show current uploaded files
-            if hasattr(st.session_state, 'upload_transactions') and st.session_state.upload_transactions is not None:
-                st.info(f"✅ {st.session_state.upload_transactions.name}")
-            if hasattr(st.session_state, 'upload_products') and st.session_state.upload_products is not None:
-                st.info(f"✅ {st.session_state.upload_products.name}")
+            if has_transactions and has_products:
+                # Show current uploaded files
+                st.success("✅ Files loaded successfully!")
+                st.info(f"📄 {st.session_state.upload_transactions['name']}")
+                st.info(f"📄 {st.session_state.upload_products['name']}")
+                
+                # Option to reload files
+                if st.button("🔄 Reload Files", key="reload_files"):
+                    # Clear existing files
+                    if 'upload_transactions' in st.session_state:
+                        del st.session_state.upload_transactions
+                    if 'upload_products' in st.session_state:
+                        del st.session_state.upload_products
+                    st.success("Files cleared. Please upload new files.")
+                    st.rerun()
+            else:
+                # File uploaders (only show when no files are loaded)
+                uploaded_transactions = st.file_uploader(
+                    "Transactions.csv", type=["csv"], key="sidebar_upload_transactions"
+                )
+                uploaded_products = st.file_uploader(
+                    "Products_with_Categories.csv", type=["csv"], key="sidebar_upload_products"
+                )
+                
+                # Apply button
+                if st.button("Apply", key="apply_uploads", type="primary"):
+                    if uploaded_transactions is not None:
+                        # Store file content and metadata
+                        st.session_state.upload_transactions = {
+                            'name': uploaded_transactions.name,
+                            'content': uploaded_transactions.getvalue(),
+                            'type': uploaded_transactions.type
+                        }
+                    if uploaded_products is not None:
+                        # Store file content and metadata
+                        st.session_state.upload_products = {
+                            'name': uploaded_products.name,
+                            'content': uploaded_products.getvalue(),
+                            'type': uploaded_products.type
+                        }
+                    st.success("Files applied successfully!")
+                    st.rerun()
             
             st.markdown("---")
 
