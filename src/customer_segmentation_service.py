@@ -46,6 +46,66 @@ class CustomerSegmentationService:
         
         logger.info(f"Customer Segmentation Service initialized with session ID: {self._session_id}")
     
+    # ========= Streamlit cached helpers (module-level behavior) =========
+    # These functions encapsulate heavy computations and are cached across reruns
+    # to significantly speed up the app when parameters/data are unchanged.
+    @staticmethod
+    @st.cache_data(show_spinner=False, ttl=3600)
+    def _cached_rfm_analysis(merged_rfm_df: pd.DataFrame, scoring_method: str) -> Dict[str, Any]:
+        preprocess = PreprocessCore()
+        rfm = preprocess.compute_rfm_metrics(merged_rfm_df)
+        rfm = preprocess.calculate_rfm_scores(rfm, method=scoring_method)
+        rfm = preprocess.segment_customers_rule_based(rfm)
+        validation_report = preprocess.validate_rfm_data(rfm)
+        return {
+            'rfm_df': rfm,
+            'validation_report': validation_report,
+            'scoring_method': scoring_method,
+            'status': 'success'
+        }
+
+    @staticmethod
+    @st.cache_data(show_spinner=False, ttl=3600)
+    def _cached_kmeans(rfm_df: pd.DataFrame, n_clusters: int, scaler_type: str) -> Dict[str, Any]:
+        builder = BuildModelCore()
+        rfm_clustered, clustering_metrics = builder.perform_kmeans_clustering(
+            rfm_df, n_clusters=n_clusters, scaler_type=scaler_type
+        )
+        cluster_profiles = builder.create_cluster_profiles(rfm_clustered)
+        return {
+            'rfm_clustered_df': rfm_clustered,
+            'clustering_metrics': clustering_metrics,
+            'cluster_profiles': cluster_profiles,
+            'n_clusters': n_clusters,
+            'scaler_type': scaler_type,
+            'status': 'success'
+        }
+
+    @staticmethod
+    @st.cache_data(show_spinner=False, ttl=1800)
+    def _cached_evaluate_quality(rfm_df: pd.DataFrame, k_range: Optional[List[int]], scaler_type: str) -> Dict[str, Any]:
+        builder = BuildModelCore()
+        evaluation_results = builder.evaluate_clustering_quality(rfm_df, k_range=k_range, scaler_type=scaler_type)
+        optimal_k = builder.get_optimal_clusters(evaluation_results)
+        return {
+            'evaluation_results': evaluation_results,
+            'optimal_k': optimal_k,
+            'status': 'success'
+        }
+
+    @staticmethod
+    @st.cache_data(show_spinner=False, ttl=1800)
+    def _cached_kpis(merged_df: pd.DataFrame, rfm_df: pd.DataFrame, kpi_type: str) -> Dict[str, Any]:
+        pre = PreprocessCore()
+        kpi_data = pre.calculate_basic_kpis(merged_df, rfm_df)
+        segment_kpis = pre.calculate_segment_kpis(rfm_df)
+        return {
+            'kpi_data': kpi_data,
+            'segment_kpis': segment_kpis,
+            'kpi_type': kpi_type,
+            'status': 'success'
+        }
+
     def load_and_prepare_data(
         self, 
         transactions_file: Optional[str] = None, 
@@ -130,11 +190,20 @@ class CustomerSegmentationService:
             Dictionary with RFM analysis results
         """
         cache_key = f"rfm_analysis_{hash(str(merged_rfm_df.shape) + scoring_method)}"
-        
+
+        # Prefer Streamlit cache for cross-rerun caching
+        if use_cache:
+            try:
+                result = CustomerSegmentationService._cached_rfm_analysis(merged_rfm_df, scoring_method)
+                self._cache[cache_key] = result
+                return result
+            except Exception as e:
+                logger.warning(f"Streamlit cache failed for RFM analysis, falling back. Error: {e}")
+
         if use_cache and cache_key in self._cache:
             logger.info("Using cached RFM analysis results")
             return self._cache[cache_key]
-        
+
         try:
             # Compute RFM metrics
             rfm = self.preprocess_core.compute_rfm_metrics(merged_rfm_df)
@@ -192,11 +261,19 @@ class CustomerSegmentationService:
             Dictionary with clustering results
         """
         cache_key = f"kmeans_{hash(str(rfm_df.shape) + str(n_clusters) + scaler_type)}"
-        
+
+        if use_cache:
+            try:
+                result = CustomerSegmentationService._cached_kmeans(rfm_df, n_clusters, scaler_type)
+                self._cache[cache_key] = result
+                return result
+            except Exception as e:
+                logger.warning(f"Streamlit cache failed for K-Means, falling back. Error: {e}")
+
         if use_cache and cache_key in self._cache:
             logger.info("Using cached K-Means clustering results")
             return self._cache[cache_key]
-        
+
         try:
             # Perform clustering
             rfm_clustered, clustering_metrics = self.build_model_core.perform_kmeans_clustering(
@@ -250,21 +327,10 @@ class CustomerSegmentationService:
             Dictionary with evaluation results
         """
         try:
-            evaluation_results = self.build_model_core.evaluate_clustering_quality(
-                rfm_df, k_range=k_range, scaler_type=scaler_type
-            )
-            
-            # Get optimal k recommendation
-            optimal_k = self.build_model_core.get_optimal_clusters(evaluation_results)
-            
-            result = {
-                'evaluation_results': evaluation_results,
-                'optimal_k': optimal_k,
-                'status': 'success',
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            logger.info(f"Clustering quality evaluation completed. Optimal k: {optimal_k}")
+            # Use cached helper for evaluation
+            result = CustomerSegmentationService._cached_evaluate_quality(rfm_df, k_range, scaler_type)
+            result['timestamp'] = datetime.now().isoformat()
+            logger.info(f"Clustering quality evaluation completed. Optimal k: {result.get('optimal_k')}")
             return result
             
         except Exception as e:
@@ -294,24 +360,9 @@ class CustomerSegmentationService:
             Dictionary with KPI results
         """
         try:
-            if kpi_type == "basic":
-                kpi_data = self.preprocess_core.calculate_basic_kpis(merged_df, rfm_df)
-            else:
-                # For advanced KPIs, use basic as base and extend
-                kpi_data = self.preprocess_core.calculate_basic_kpis(merged_df, rfm_df)
-                # Add additional advanced metrics here if needed
-            
-            # Calculate segment KPIs
-            segment_kpis = self.preprocess_core.calculate_segment_kpis(rfm_df)
-            
-            result = {
-                'kpi_data': kpi_data,
-                'segment_kpis': segment_kpis,
-                'kpi_type': kpi_type,
-                'status': 'success',
-                'timestamp': datetime.now().isoformat()
-            }
-            
+            # Use cached KPI computation
+            result = CustomerSegmentationService._cached_kpis(merged_df, rfm_df, kpi_type)
+            result['timestamp'] = datetime.now().isoformat()
             logger.info("KPI calculation completed successfully")
             return result
             

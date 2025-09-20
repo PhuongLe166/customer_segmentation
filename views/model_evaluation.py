@@ -291,7 +291,7 @@ def show():
                 </div>
                 """, unsafe_allow_html=True)
 
-            st.markdown("##### ✨ Cluster Visualization (Improved)")
+            st.markdown("##### Cluster Visualization")
 
             cluster_avg = rfm_km.groupby('Cluster')[['Recency','Frequency','Monetary']].mean().reset_index()
             recency_median = rfm_km['Recency'].median()
@@ -372,8 +372,7 @@ def show():
             st.altair_chart(final_chart, use_container_width=True)
 
             
-            # Treemap - Second line
-            st.markdown("##### Cluster Size Distribution")
+            # Treemap - Second line (header removed per request)
             treemap_fig = EvaluateCore.plot_cluster_treemap(rfm_km.reset_index(), 'Cluster')
             st.pyplot(treemap_fig, width='stretch')
 
@@ -391,7 +390,15 @@ def show():
                 st.pyplot(fig_pair_km, width='stretch')
             elif viz_option_km == "Silhouette by Cluster":
                 try:
-                    sil_samples = silhouette_samples(X, labels)
+                    from sklearn.preprocessing import StandardScaler
+                    from sklearn.metrics import silhouette_samples
+                    # Rebuild the feature matrix consistently (standard scaling)
+                    features = rfm[['Recency','Frequency','Monetary']].copy()
+                    scaler_tmp = StandardScaler()
+                    X_tmp = scaler_tmp.fit_transform(features)
+                    labels_tmp = rfm_km['Cluster'].to_numpy()
+
+                    sil_samples = silhouette_samples(X_tmp, labels_tmp)
                     rfm_km['_silhouette'] = sil_samples
                     per_cluster_sil = (
                         rfm_km.groupby('Cluster')['_silhouette'].mean().reset_index()
@@ -404,8 +411,8 @@ def show():
                     ax_sil.set_ylabel('Average Silhouette Score')
                     ax_sil.grid(True, axis='y', linestyle='--', alpha=0.3)
                     st.pyplot(fig_sil, width='stretch')
-                except Exception:
-                    pass
+                except Exception as e:
+                    st.warning(f"Could not compute silhouette chart: {e}")
         except Exception as e:
             st.error(f"K-Means clustering failed: {e}")
     

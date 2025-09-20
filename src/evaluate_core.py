@@ -819,29 +819,73 @@ class EvaluateCore:
     
     @staticmethod
     def plot_cluster_boxplots(df_rfm: pd.DataFrame, cluster_col: str):
-        """Boxplots for Recency, Frequency, Monetary by cluster."""
+        """Boxplots for Recency, Frequency, Monetary by cluster with legacy styling."""
         import matplotlib.pyplot as plt
         import seaborn as sns
         
-        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        # Legacy seaborn look & feel
+        sns.set_theme(style="whitegrid", context="notebook")
+        palette = sns.color_palette("Set2")
         
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
         rfm_cols = ['Recency', 'Frequency', 'Monetary']
+        titles = [
+            f'Recency by {cluster_col}',
+            f'Frequency by {cluster_col}',
+            f'Monetary by {cluster_col}'
+        ]
+        
+        # Order clusters by name for stable coloring
+        order = (
+            df_rfm[cluster_col]
+            .astype(str)
+            .value_counts()
+            .index.tolist()
+        )
         
         for i, col in enumerate(rfm_cols):
-            sns.boxplot(data=df_rfm, x=cluster_col, y=col, ax=axes[i])
-            axes[i].set_title(f'{col} by {cluster_col}')
-            axes[i].tick_params(axis='x', rotation=45)
+            sns.boxplot(
+                data=df_rfm,
+                x=cluster_col,
+                y=col,
+                order=order,
+                palette=palette,
+                width=0.6,
+                linewidth=1.2,
+                fliersize=2.5,
+                ax=axes[i],
+            )
+            axes[i].set_title(titles[i], fontsize=12, weight="bold")
+            axes[i].set_xlabel("")
+            axes[i].set_ylabel(col)
+            axes[i].tick_params(axis='x', rotation=35)
+            axes[i].grid(True, axis='y', linestyle='--', alpha=0.35)
         
         fig.tight_layout()
         return fig
     
     @staticmethod
     def plot_pairplot(df_rfm: pd.DataFrame, cluster_col: str):
-        """Pairplot for RFM metrics colored by cluster."""
+        """Pairplot for RFM metrics colored by cluster using legacy styling."""
         import seaborn as sns
         
-        fig = sns.pairplot(df_rfm, hue=cluster_col, vars=['Recency', 'Frequency', 'Monetary'])
-        return fig
+        sns.set_theme(style="whitegrid", context="notebook")
+        palette = sns.color_palette("Set2")
+        
+        grid = sns.pairplot(
+            df_rfm,
+            hue=cluster_col,
+            vars=['Recency', 'Frequency', 'Monetary'],
+            palette=palette,
+            diag_kind='kde',
+            plot_kws=dict(alpha=0.7, s=22, edgecolor='white', linewidth=0.4),
+            diag_kws=dict(fill=True, alpha=0.6),
+        )
+        # Make titles consistent with legacy look
+        grid.fig.suptitle("RFM Pairplot by Segment", fontsize=14, fontweight='bold')
+        grid.fig.tight_layout()
+        grid.fig.subplots_adjust(top=0.93)
+        return grid.fig
     
     @staticmethod
     def plot_cluster_treemap(df_rfm: pd.DataFrame, cluster_col: str):
