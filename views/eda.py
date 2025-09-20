@@ -468,7 +468,9 @@ def show():
 
             st.markdown("##### Top Categories by Revenue")
             # Bar chart for top categories using component
-            ChartComponents.render_category_analysis_chart(top_cats, "bar", num_cats)
+            # Rename columns to what the component expects
+            top_cats_named = top_cats.rename(columns={cat_col: "category", "amount": "total_revenue"})
+            ChartComponents.render_category_analysis_chart(top_cats_named, "bar", num_cats)
 
         elif analysis_type == "Product Analysis" and product_col is not None:
             # Top products by total revenue
