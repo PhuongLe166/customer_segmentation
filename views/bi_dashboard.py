@@ -8,9 +8,56 @@ from components import KPICards, ChartComponents, TableComponents, FormComponent
 
 def show():
     """Display the BI Dashboard page"""
-    st.markdown(f"# {PAGE_CONFIG['bi_dashboard']['title']}")
-    st.markdown(f"*{PAGE_CONFIG['bi_dashboard']['description']}*")
-    st.markdown("---")
+    # Hero header
+    st.markdown(
+        f"""
+        <style>
+        .bi-hero {{
+            /* Higher-contrast vibrant gradient */
+            background: linear-gradient(120deg, #0a3d62 0%, #1f77b4 45%, #56ccf2 100%);
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 14px;
+            padding: 22px 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 10px 28px rgba(16, 81, 126, 0.28);
+        }}
+        .bi-hero h1 {{
+            margin: 0 0 6px 0;
+            font-size: 26px;
+            line-height: 1.25;
+            color: #ffffff;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }}
+        .bi-hero p {{
+            margin: 0;
+            color: #e9f3fb;
+            font-size: 14px;
+        }}
+        .section-title {{
+            font-weight: 700;
+            font-size: 18px;
+            margin: 12px 0 8px 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #0f2942;
+        }}
+        .section-title:before {{
+            content: "";
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #1f77b4;
+            box-shadow: 0 0 0 4px rgba(31,119,180,0.12);
+        }}
+        </style>
+        <div class="bi-hero">
+            <h1>{PAGE_CONFIG['bi_dashboard']['title']}</h1>
+            <p>{PAGE_CONFIG['bi_dashboard']['description']}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     
     # Check if files are uploaded, use default if not
     transactions_file = getattr(st.session_state, "upload_transactions", None)
@@ -57,7 +104,7 @@ def show():
         st.info(f"📤 Using uploaded files: {tx_name} • {pd_name}")
     
     # Key Performance Indicators Section (including RFM)
-    st.markdown("### Key Performance Indicators")
+    st.markdown("<div class='section-title'>Key Performance Indicators</div>", unsafe_allow_html=True)
     
     # Calculate KPIs using service
     kpis = service.calculate_kpis(merged, rfm)
@@ -79,8 +126,8 @@ def show():
     # CLUSTERING ANALYSIS
     # =========================
     
-    # Default k = 4 (can be adjusted by user)
-    k = FormComponents.render_cluster_selector(min_clusters=2, max_clusters=10, default=4)
+    # Default k = 4 (fixed)
+    k = 4
     
     # Perform K-Means clustering using service
     clustering = service.perform_kmeans_clustering(rfm.copy(), n_clusters=k)
@@ -91,32 +138,41 @@ def show():
     rfm_km = clustering['rfm_clustered_df']
     clustering_metrics = clustering['clustering_metrics']
     
-    
-    # Create visualizations for K-Means clustering
-    clustering_visualizations = service.create_visualizations({
-        'merged_df': merged,
-        'rfm_df': rfm,
-        'rfm_clustered_df': rfm_km,
-        'kpi_data': kpi_data
-    })
-    
-    if clustering_visualizations['status'] != 'success':
-        st.error(f"Clustering visualization creation failed: {clustering_visualizations.get('error', 'Unknown error')}")
-        return
-    
     # =========================
     # TWO CHARTS ON SAME LINE - ALIGNED LAYOUT
     # =========================
+    
+    # Custom CSS: style Altair chart containers directly (no extra wrapper divs)
+    st.markdown("""
+    <style>
+    /* Style the native Altair chart container */
+    [data-testid="stAltairChart"] {
+        background-color: #ffffff;
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin: 10px 0;
+        transition: box-shadow 0.3s ease, border-color 0.3s ease;
+        width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+        overflow: hidden;
+    }
+    [data-testid="stAltairChart"]:hover {
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        border-color: #1f77b4;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
     # Create two columns for side-by-side charts
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("### Recency and Monetary of each Cluster")
         ChartComponents.render_cluster_bubble_chart(rfm_km)
     
     with col2:
-        st.markdown("### Customer Segmentation: RFM Analysis")
         ChartComponents.render_cluster_scatter_chart(rfm_km)
     
     # =========================

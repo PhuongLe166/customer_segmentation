@@ -23,7 +23,7 @@ class TableComponents:
             st.warning("No data available to display.")
             return
         
-        st.markdown(f"#### {title}")
+        st.markdown(f"<div class='section-title'>{title}</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='stat-badges'><span class='stat'>Rows: {len(df):,}</span><span class='stat'>Columns: {df.shape[1]}</span></div>", unsafe_allow_html=True)
         st.dataframe(df.head(max_rows), width='stretch')
     
@@ -45,18 +45,31 @@ class TableComponents:
         # Determine the correct segment column name
         segment_col = 'Cluster_Name' if 'Cluster_Name' in segment_df.columns else 'Segment'
         
-        # Add CSS for table header styling
+        # Add CSS for a polished, card-like table appearance
         st.markdown("""
         <style>
-        .stDataFrame table thead tr th {
-            background-color: #1f77b4 !important;
-            color: white !important;
-            font-weight: bold !important;
+        /* Card wrapper for dataframes */
+        div[data-testid="stDataFrame"] {
+            background: #ffffff;
+            border: 1px solid #e6eef7;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(31,119,180,0.06);
+            padding: 8px 8px 2px 8px;
         }
-        .stDataFrame table thead tr th:first-child {
-            background-color: #1f77b4 !important;
-            color: white !important;
+        /* Header styling (bold, high-contrast) */
+        .stDataFrame table thead tr th,
+        div[data-testid="stDataFrame"] div[role="columnheader"] {
+            background: linear-gradient(180deg, #1f77b4 0%, #145a92 100%) !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+            border-bottom: 1px solid #0e4d78 !important;
+            white-space: nowrap;
+            font-size: 13px !important;
         }
+        /* Row hover */
+        .stDataFrame table tbody tr:hover td { background-color: #f9fcff !important; }
+        /* Bar text look */
+        .stDataFrame table tbody td { vertical-align: middle; }
         </style>
         """, unsafe_allow_html=True)
         
@@ -70,27 +83,61 @@ class TableComponents:
         available_columns = [col for col in display_columns if col in segment_df.columns]
         
         if available_columns:
-            st.dataframe(
-                segment_df[available_columns],
-                width='stretch',
-                hide_index=True,
-                column_config={
-                    segment_col: 'Cluster Name',
-                    'Total_Users': 'Total Users',
-                    'Pct_Users': '% Users',
-                    'Pct_Users_bar': 'Users Bar',
-                    'Pct_Revenue': '% Revenue', 
-                    'Pct_Revenue_bar': 'Revenue Bar',
-                    'Pct_Transactions': '% Transactions',
-                    'Pct_Transactions_bar': 'Transactions Bar',
-                    'Avg_Recency': 'Avg Recency',
-                    'Avg_Recency_bar': 'Recency Bar',
-                    'Avg_Frequency': 'Avg Frequency',
-                    'Avg_Frequency_bar': 'Frequency Bar',
-                    'Avg_Monetary': 'Avg Monetary',
-                    'Avg_Monetary_bar': 'Monetary Bar'
-                }
-            )
+            # Prepare display DataFrame with friendly column names
+            rename_map = {
+                segment_col: 'Cluster Name',
+                'Total_Users': 'Total Users',
+                'Pct_Users': '% Users',
+                'Pct_Users_bar': 'Users Bar',
+                'Pct_Revenue': '% Revenue',
+                'Pct_Revenue_bar': 'Revenue Bar',
+                'Pct_Transactions': '% Transactions',
+                'Pct_Transactions_bar': 'Transactions Bar',
+                'Avg_Recency': 'Avg Recency (days)',
+                'Avg_Recency_bar': 'Recency Bar',
+                'Avg_Frequency': 'Avg Frequency',
+                'Avg_Frequency_bar': 'Frequency Bar',
+                'Avg_Monetary': 'Avg Monetary',
+                'Avg_Monetary_bar': 'Monetary Bar'
+            }
+            df_display = segment_df[available_columns].rename(columns={k: v for k, v in rename_map.items() if k in available_columns})
+
+            # Number formatting
+            fmt = {}
+            if 'Total Users' in df_display.columns:
+                fmt['Total Users'] = lambda x: f"{x:,.0f}"
+            if '% Users' in df_display.columns:
+                fmt['% Users'] = lambda x: f"{x:.0f}%"
+            if '% Revenue' in df_display.columns:
+                fmt['% Revenue'] = lambda x: f"{x:.0f}%"
+            if '% Transactions' in df_display.columns:
+                fmt['% Transactions'] = lambda x: f"{x:.0f}%"
+            if 'Avg Recency (days)' in df_display.columns:
+                fmt['Avg Recency (days)'] = lambda x: f"{x:.0f}"
+            if 'Avg Frequency' in df_display.columns:
+                fmt['Avg Frequency'] = lambda x: f"{x:.1f}"
+            if 'Avg Monetary' in df_display.columns:
+                fmt['Avg Monetary'] = lambda x: f"${x:,.0f}"
+
+            # Style header using pandas Styler so it always applies within the component
+            header_styles = [
+                dict(selector='th', props=[('background', 'linear-gradient(180deg, #1f77b4 0%, #145a92 100%)'), ('color', 'white')]),
+                dict(selector='thead th', props=[('background', 'linear-gradient(180deg, #1f77b4 0%, #145a92 100%)'), ('color', 'white')]),
+                dict(selector='thead tr:nth-child(1) th', props=[('border-bottom', '1px solid #0e4d78')]),
+            ]
+
+            try:
+                styled = (
+                    df_display.style
+                    .set_table_styles(header_styles, overwrite=False)
+                    .format(fmt)
+                    .hide(axis='index')
+                )
+            except Exception:
+                # Fallback for older pandas without hide(axis='index')
+                styled = df_display.style.set_table_styles(header_styles, overwrite=False).format(fmt)
+
+            st.dataframe(styled, use_container_width=True)
         else:
             st.warning("No suitable columns found for segment table display.")
     
