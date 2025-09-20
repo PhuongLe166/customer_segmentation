@@ -33,15 +33,33 @@ def setup_sidebar():
             st.rerun()
         st.markdown("---")
         
-        # Uploads for EDA shown above EDA Controls
-        if current_page == "EDA":
+        # Uploads for all pages that need data
+        if current_page in ["EDA", "Model Evaluation", "BI Dashboard"]:
             st.markdown("### Upload data files")
-            st.session_state.upload_transactions = st.file_uploader(
+            
+            # File uploaders
+            uploaded_transactions = st.file_uploader(
                 "Transactions.csv", type=["csv"], key="sidebar_upload_transactions"
             )
-            st.session_state.upload_products = st.file_uploader(
+            uploaded_products = st.file_uploader(
                 "Products_with_Categories.csv", type=["csv"], key="sidebar_upload_products"
             )
+            
+            # Apply button
+            if st.button("Apply", key="apply_uploads", type="primary"):
+                if uploaded_transactions is not None:
+                    st.session_state.upload_transactions = uploaded_transactions
+                if uploaded_products is not None:
+                    st.session_state.upload_products = uploaded_products
+                st.success("Files applied successfully!")
+                st.rerun()
+            
+            # Show current uploaded files
+            if hasattr(st.session_state, 'upload_transactions') and st.session_state.upload_transactions is not None:
+                st.info(f"✅ {st.session_state.upload_transactions.name}")
+            if hasattr(st.session_state, 'upload_products') and st.session_state.upload_products is not None:
+                st.info(f"✅ {st.session_state.upload_products.name}")
+            
             st.markdown("---")
 
         # Remove Project Info section per request

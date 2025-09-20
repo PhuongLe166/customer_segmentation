@@ -24,8 +24,8 @@ def show():
     </style>
     """, unsafe_allow_html=True)
     try:
-        st.image("assets/images/customer_segmentation.jpg", use_container_width=True)
-        st.image("assets/images/glocery.jpg", use_container_width=True)
+        st.image("assets/images/customer_segmentation.jpg", width='stretch')
+        st.image("assets/images/glocery.jpg", width='stretch')
         st.markdown("---")
     except Exception:
         pass

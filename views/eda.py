@@ -4,8 +4,17 @@ import altair as alt
 from config.settings import PAGE_CONFIG
 import pandas as pd
 from pathlib import Path
-from src.eda_utils import load_datasets, infer_join_keys, merge_datasets, compute_recency_frequency_metrics, compute_transaction_based_metrics
-from src.data_processing_eda import compute_rfm
+from src.customer_segmentation_service import CustomerSegmentationService
+from components import KPICards, ChartComponents, TableComponents, FormComponents
+
+def ensure_amount_column(df):
+    """Ensure amount column exists by calculating from items * price if needed."""
+    if 'amount' not in df.columns:
+        if 'items' in df.columns and 'price' in df.columns:
+            df['amount'] = df['items'] * df['price']
+        else:
+            raise ValueError("Cannot calculate amount: missing 'amount' or 'items'/'price' columns")
+    return df
 
 def show():
     """Display the EDA page"""
@@ -21,15 +30,25 @@ def show():
     transactions_file = getattr(st.session_state, "upload_transactions", None)
     products_file = getattr(st.session_state, "upload_products", None)
     
-    # Load data via src utilities
+    # Initialize service and load data
     try:
-        df_transactions, df_products, src_tx, src_pd = load_datasets(transactions_file, products_file)
+        service = CustomerSegmentationService()
+        data_prep = service.load_and_prepare_data(transactions_file, products_file)
+        if data_prep['status'] != 'success':
+            st.error(f"Data preparation failed: {data_prep.get('error', 'Unknown error')}")
+            return
+        
+        df_transactions = data_prep['transactions_df']
+        df_products = data_prep['products_df']
+        src_tx = data_prep['sources']['transactions']
+        src_pd = data_prep['sources']['products']
+        
     except Exception as e:
-        st.error(f"Failed to load datasets: {e}")
+        st.error(f"Service initialization failed: {e}")
         return
     
     # Status messages
-    st.success(f"Loaded Transactions ({src_tx}) with {len(df_transactions):,} rows • Products ({src_pd}) with {len(df_products):,} rows")
+    st.success(f"✅ Data loaded: {len(df_transactions):,} transactions • {len(df_products):,} products")
     # Light CSS for nicer tables/sections
     st.markdown("""
     <style>
@@ -51,168 +70,75 @@ def show():
     
     with tab_overview:
         # Transactions block
-        st.markdown("#### Transactions")
-        st.markdown(f"<div class='stat-badges'><span class='stat'>Rows: {len(df_transactions):,}</span><span class='stat'>Columns: {df_transactions.shape[1]}</span></div>", unsafe_allow_html=True)
-        st.dataframe(df_transactions.head(10), use_container_width=True)
+        TableComponents.render_data_preview(df_transactions, "Transactions", 10)
         st.markdown("---")
 
         # Products block
-        st.markdown("#### Products")
-        st.markdown(f"<div class='stat-badges'><span class='stat'>Rows: {len(df_products):,}</span><span class='stat'>Columns: {df_products.shape[1]}</span></div>", unsafe_allow_html=True)
-        st.dataframe(df_products.head(10), use_container_width=True)
+        TableComponents.render_data_preview(df_products, "Products", 10)
             
     
     with tab_merge:
         st.markdown("#### Merge Transactions + Products")
-        # Infer join column using utility
-        left_key, right_key = infer_join_keys(df_transactions, df_products)
-        c5, c6, c7 = st.columns(3)
-        with c5:
-            left_on = st.selectbox("Left key (Transactions)", options=list(df_transactions.columns), index=list(df_transactions.columns).index(left_key))
-        with c6:
-            right_on = st.selectbox("Right key (Products)", options=list(df_products.columns), index=list(df_products.columns).index(right_key))
-        with c7:
-            how = st.selectbox("Join type", ["inner", "left", "right", "outer"], index=0)
+        # Use service for merge and analysis
         try:
-            merged = merge_datasets(df_transactions, df_products, left_on, right_on, how)
+            merged = data_prep['merged_df']
+            merged_rfm = data_prep['merged_rfm_df']
             
-            # Calculate transaction-based metrics
-            customer_col = "Member_number" if "Member_number" in merged.columns else "member_number"
-            date_col = "Date" if "Date" in merged.columns else "date"
-            amount_col = "amount"
+            # Perform RFM analysis
+            rfm_analysis = service.perform_rfm_analysis(merged_rfm)
+            if rfm_analysis['status'] != 'success':
+                st.error(f"RFM analysis failed: {rfm_analysis.get('error', 'Unknown error')}")
+                return
             
-            # Use the same RFM calculation as other pages for consistency
-            merged_rfm = merged.copy()
-            merged_rfm = merged_rfm.rename(columns={
-                customer_col: 'member_number', 
-                date_col: 'date'
-            })
+            rfm = rfm_analysis['rfm_df']
             
-            if 'items' not in merged_rfm.columns:
-                items_col = None
-                for col in merged_rfm.columns:
-                    if 'item' in col.lower():
-                        items_col = col
-                        break
-                if items_col:
-                    merged_rfm['items'] = merged_rfm[items_col]
-                else:
-                    merged_rfm['items'] = 1
+            # Calculate KPIs using service
+            kpis = service.calculate_kpis(merged, rfm)
+            if kpis['status'] != 'success':
+                st.error(f"KPI calculation failed: {kpis.get('error', 'Unknown error')}")
+                return
             
-            # Calculate RFM using the same method as other pages
-            rfm = compute_rfm(
-                merged_rfm,
-                customer_col='member_number',
-                date_col='date',
-                amount_col='amount'
-            )
+            kpi_data = kpis['kpi_data']
             
-            # Calculate metrics from RFM data for consistency
-            # Total transactions should be unique transactions (customer + date combinations)
-            total_transactions = int(rfm['Frequency'].sum())  # Sum of all customer frequencies = total unique transactions
-            total_revenue = float(merged['amount'].sum())
-            avg_order_value = float(merged['amount'].mean())
-            avg_recency = float(rfm['Recency'].mean())
-            avg_frequency = float(rfm['Frequency'].mean())  # Average transactions per customer
-            avg_monetary = float(rfm['Monetary'].mean())
+            # Create KPI display using component
+            KPICards.render_basic_kpi_cards(kpi_data, columns=3)
             
-            # Debug info to verify calculations
-            import time
-            st.info(f"Debug (Updated {time.strftime('%H:%M:%S')}): RFM customers={len(rfm)}, Total unique transactions={total_transactions}, Avg frequency per customer={avg_frequency:.2f}")
-            
-            kpi_html = f"""
-            <div class='kpi-grid'>
-              <div class='kpi'><div class='label'>Total Transactions</div><div class='value'>{total_transactions:,}</div></div>
-              <div class='kpi'><div class='label'>Total Revenue</div><div class='value'>${total_revenue:,.0f}</div></div>
-              <div class='kpi'><div class='label'>Avg Price per Order</div><div class='value'>${avg_order_value:,.2f}</div></div>
-              <div class='kpi'><div class='label'>Avg Recency</div><div class='value'>{avg_recency:,.1f} days</div></div>
-              <div class='kpi'><div class='label'>Avg Frequency</div><div class='value'>{avg_frequency:,.1f}</div></div>
-              <div class='kpi'><div class='label'>Avg Monetary</div><div class='value'>${avg_monetary:,.0f}</div></div>
-            </div>
-            """
-            st.markdown(kpi_html, unsafe_allow_html=True)
             # Then meta info and preview
             st.info(f"Merged shape: {merged.shape[0]:,} rows × {merged.shape[1]:,} columns")
-            st.dataframe(merged.head(20), use_container_width=True)
+            st.dataframe(merged.head(20), width='stretch')
         except Exception as e:
             st.error(f"Merge failed: {e}")
         
     with tab_revenue:
         st.markdown("#### Revenue Trend")
-        # Use sensible defaults for merging (no key controls)
-        left_key, right_key = infer_join_keys(df_transactions, df_products)
+        # Use core service for merge
         try:
-            merged_tr = merge_datasets(df_transactions, df_products, left_key, right_key, "inner")
+            merged_tr = data_prep['merged_df']
         except Exception as e:
-            st.error(f"Merge failed: {e}")
-            return
-
-        # Ensure datetime and amount
-        date_col = "Date" if "Date" in merged_tr.columns else ("date" if "date" in merged_tr.columns else None)
-        if date_col is None:
-            st.warning("No date column found for trend.")
-            return
-        merged_tr[date_col] = pd.to_datetime(merged_tr[date_col], errors="coerce")
-        merged_tr = merged_tr.dropna(subset=[date_col])
-        if "amount" not in merged_tr.columns:
-            st.warning("No amount column found after merge.")
+            st.error(f"Data access failed: {e}")
             return
 
         # Date range slicer
-        min_date = merged_tr[date_col].min().date()
-        max_date = merged_tr[date_col].max().date()
+        date_col = "Date" if "Date" in merged_tr.columns else "date"
+        merged_tr[date_col] = pd.to_datetime(merged_tr[date_col], errors="coerce")
+        merged_tr = merged_tr.dropna(subset=[date_col])
         
-        col1, col2 = st.columns(2)
-        with col1:
-            start_date = st.date_input("Start Date", value=min_date, min_value=min_date, max_value=max_date)
-        with col2:
-            end_date = st.date_input("End Date", value=max_date, min_value=min_date, max_value=max_date)
+        # Use form components for date range and granularity
+        start_date, end_date = FormComponents.render_date_range_selector(merged_tr, date_col)
+        if start_date and end_date:
+            # Filter data by date range
+            merged_tr = merged_tr[
+                (merged_tr[date_col].dt.date >= start_date.date()) & 
+                (merged_tr[date_col].dt.date <= end_date.date())
+            ]
+
+        granularity = FormComponents.render_granularity_selector()
         
-        # Filter data by date range
-        merged_tr = merged_tr[
-            (merged_tr[date_col].dt.date >= start_date) & 
-            (merged_tr[date_col].dt.date <= end_date)
-        ]
-
-        granularity = st.selectbox("Aggregate by", ["Date", "Week", "Month"], index=2)
-        base = merged_tr[[date_col, "amount"]].copy()
-        base[date_col] = pd.to_datetime(base[date_col], errors="coerce")
-        base = base.dropna(subset=[date_col])
-
-        if granularity == "Date":
-            periods = base[date_col].dt.floor("D")
-        elif granularity == "Week":
-            periods = base[date_col].dt.to_period("W").dt.start_time
-        else:
-            periods = base[date_col].dt.to_period("M").dt.start_time
-
-        trend = base.groupby(periods)["amount"].sum().reset_index()
-        trend.columns = ["period", "revenue"]
-        trend = trend.dropna(subset=["period"]).sort_values("period")
-
-        # Friendly x-axis labels by granularity
-        if granularity == "Month":
-            trend["label"] = trend["period"].dt.strftime("%Y %b")
-        elif granularity == "Week":
-            iso = trend["period"].dt.isocalendar()
-            trend["label"] = iso["year"].astype(str) + " W" + iso["week"].astype(str)
-        else:  # Date
-            trend["label"] = trend["period"].dt.strftime("%Y %b %d")
-
-        # Ensure numeric and ordered labels, then draw with Altair
-        trend["revenue"] = pd.to_numeric(trend["revenue"], errors="coerce").fillna(0)
-        order = trend["label"].tolist()
-        chart = (
-            alt.Chart(trend)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X("label:N", sort=order, title="Period"),
-                y=alt.Y("revenue:Q", title="Revenue"),
-                tooltip=["label", alt.Tooltip("revenue:Q", format=",.0f")],
-            )
-            .properties(title="Revenue Over Time")
-        )
-        st.altair_chart(chart, use_container_width=True)
+        # Calculate revenue trends using service
+        trend = service.eda_core.calculate_revenue_trends(merged_tr, granularity)
+        
+        # Create chart using component
+        ChartComponents.render_revenue_trend_chart(trend, "line")
 
         st.markdown("---")
 
@@ -223,6 +149,8 @@ def show():
                 cat_col = c
                 break
         if cat_col is not None:
+            # Ensure amount column exists
+            merged_tr = ensure_amount_column(merged_tr)
             monthly = merged_tr[[date_col, cat_col, "amount"]].copy()
             monthly[date_col] = pd.to_datetime(monthly[date_col], errors="coerce")
             monthly = monthly.dropna(subset=[date_col])
@@ -264,6 +192,7 @@ def show():
         st.markdown("#### MoM and YoY Analysis")
 
         # Prepare monthly total revenue for growth calculations
+        merged_tr = ensure_amount_column(merged_tr)
         monthly_total = (
             merged_tr[[date_col, "amount"]]
             .assign(month=lambda df: pd.to_datetime(df[date_col]).dt.to_period("M").dt.start_time)
@@ -360,6 +289,7 @@ def show():
         
         if cat_col is not None:
             # Get monthly category revenue
+            merged_tr = ensure_amount_column(merged_tr)
             monthly_cat = merged_tr[[date_col, cat_col, "amount"]].copy()
             monthly_cat[date_col] = pd.to_datetime(monthly_cat[date_col], errors="coerce")
             monthly_cat = monthly_cat.dropna(subset=[date_col])
@@ -445,11 +375,10 @@ def show():
         st.markdown("#### Category/Product Analysis")
         
         # Use merged data for analysis
-        left_key, right_key = infer_join_keys(df_transactions, df_products)
         try:
-            merged_cat = merge_datasets(df_transactions, df_products, left_key, right_key, "inner")
+            merged_cat = data_prep['merged_df']
         except Exception as e:
-            st.error(f"Merge failed: {e}")
+            st.error(f"Data access failed: {e}")
             return
 
         # Ensure datetime and amount
@@ -459,15 +388,17 @@ def show():
             return
         merged_cat[date_col] = pd.to_datetime(merged_cat[date_col], errors="coerce")
         merged_cat = merged_cat.dropna(subset=[date_col])
-        if "amount" not in merged_cat.columns:
-            st.warning("No amount column found after merge.")
+        try:
+            merged_cat = ensure_amount_column(merged_cat)
+        except ValueError as e:
+            st.warning(f"Cannot analyze categories: {e}")
             return
 
         # Apply date filter if available
         if 'start_date' in locals() and 'end_date' in locals():
             merged_cat = merged_cat[
-                (merged_cat[date_col].dt.date >= start_date) & 
-                (merged_cat[date_col].dt.date <= end_date)
+                (merged_cat[date_col].dt.date >= start_date.date()) & 
+                (merged_cat[date_col].dt.date <= end_date.date())
             ]
 
         # Find category and product columns (robust auto-detect)
@@ -500,7 +431,7 @@ def show():
             return
 
         # Analysis type selector
-        analysis_type = st.selectbox("Analysis Type", ["Category Analysis", "Product Analysis", "Category vs Product Comparison"], index=0)
+        analysis_type = FormComponents.render_analysis_type_selector()
 
         if analysis_type == "Category Analysis" and cat_col is not None:
             # Top categories by total revenue
@@ -508,7 +439,7 @@ def show():
             
             # Slider for number of top categories
             max_cats = min(len(cat_revenue), 20)  # Limit to available categories or 20
-            num_cats = st.slider("Number of Top Categories to Show", 1, max_cats, 10)
+            num_cats = FormComponents.render_top_n_selector(max_cats, 10, "Number of Top Categories to Show")
             top_cats = cat_revenue.head(num_cats)
 
             # Category statistics FIRST
@@ -522,19 +453,8 @@ def show():
                 st.metric("Avg Category Revenue", f"${cat_revenue['amount'].mean():,.0f}")
 
             st.markdown("##### Top Categories by Revenue")
-            # Bar chart for top categories
-            cat_chart = (
-                alt.Chart(top_cats)
-                .mark_bar()
-                .encode(
-                    x=alt.X("amount:Q", title="Total Revenue"),
-                    y=alt.Y(f"{cat_col}:N", sort="-x", title="Category"),
-                    tooltip=[f"{cat_col}:N", alt.Tooltip("amount:Q", format=",.0f")],
-                    color=alt.value("#1f77b4")
-                )
-                .properties(title=f"Top {num_cats} Categories by Revenue", height=400)
-            )
-            st.altair_chart(cat_chart, use_container_width=True)
+            # Bar chart for top categories using component
+            ChartComponents.render_category_analysis_chart(top_cats, "bar", num_cats)
 
         elif analysis_type == "Product Analysis" and product_col is not None:
             # Top products by total revenue
@@ -604,7 +524,7 @@ def show():
             cat_perf_sorted = cat_perf.sort_values("amount", ascending=False).head(10)
             st.dataframe(
                 cat_perf_sorted[[cat_col, "amount", "product_count", "avg_product_revenue"]].round(2),
-                use_container_width=True
+                width='stretch'
             )
 
         else:
@@ -614,11 +534,10 @@ def show():
         st.markdown("#### RFM Analysis")
         
         # Use merged data for RFM analysis
-        left_key, right_key = infer_join_keys(df_transactions, df_products)
         try:
-            merged_rfm = merge_datasets(df_transactions, df_products, left_key, right_key, "inner")
+            merged_rfm = data_prep['merged_rfm_df']
         except Exception as e:
-            st.error(f"Merge failed: {e}")
+            st.error(f"Data access failed: {e}")
             return
 
         # Ensure datetime and amount
@@ -631,8 +550,10 @@ def show():
         if customer_col is None:
             st.warning("No customer column found for RFM analysis.")
             return
-        if "amount" not in merged_rfm.columns:
-            st.warning("No amount column found for RFM analysis.")
+        try:
+            merged_rfm = ensure_amount_column(merged_rfm)
+        except ValueError as e:
+            st.warning(f"Cannot perform RFM analysis: {e}")
             return
 
         # Ensure datetime first
@@ -642,83 +563,33 @@ def show():
         # Apply date filter if available (after coercion to datetime)
         if 'start_date' in locals() and 'end_date' in locals():
             merged_rfm = merged_rfm[
-                (merged_rfm[date_col].dt.date >= start_date) & 
-                (merged_rfm[date_col].dt.date <= end_date)
+                (merged_rfm[date_col].dt.date >= start_date.date()) & 
+                (merged_rfm[date_col].dt.date <= end_date.date())
             ]
 
-        # Calculate RFM metrics using the corrected utility (unique transaction = customer+date)
-        merged_rfm_renamed = merged_rfm.rename(columns={
-            customer_col: 'member_number',
-            date_col: 'date'
-        })
-        if 'items' not in merged_rfm_renamed.columns:
-            item_like = None
-            for c in merged_rfm_renamed.columns:
-                if 'item' in c.lower():
-                    item_like = c
-                    break
-            if item_like:
-                merged_rfm_renamed['items'] = merged_rfm_renamed[item_like]
-            else:
-                merged_rfm_renamed['items'] = 1
+        # Perform RFM analysis using service
+        rfm_analysis = service.perform_rfm_analysis(merged_rfm)
+        if rfm_analysis['status'] != 'success':
+            st.error(f"RFM analysis failed: {rfm_analysis.get('error', 'Unknown error')}")
+            return
+        
+        rfm = rfm_analysis['rfm_df']
 
-        rfm = compute_rfm(
-            merged_rfm_renamed,
-            customer_col='member_number',
-            date_col='date',
-            amount_col='amount'
-        )
-        rfm = rfm.set_index('member_number')
+        # RFM analysis already includes segmentation
 
-        # RFM Scoring (1-5 scale)
-        rfm['R_Score'] = pd.qcut(rfm['Recency'], 5, labels=[5,4,3,2,1], duplicates='drop')
-        rfm['F_Score'] = pd.qcut(rfm['Frequency'].rank(method='first'), 5, labels=[1,2,3,4,5], duplicates='drop')
-        rfm['M_Score'] = pd.qcut(rfm['Monetary'], 5, labels=[1,2,3,4,5], duplicates='drop')
-
-        # Convert to numeric
-        rfm['R_Score'] = rfm['R_Score'].astype(int)
-        rfm['F_Score'] = rfm['F_Score'].astype(int)
-        rfm['M_Score'] = rfm['M_Score'].astype(int)
-
-        # RFM Score combination
-        rfm['RFM_Score'] = rfm['R_Score'].astype(str) + rfm['F_Score'].astype(str) + rfm['M_Score'].astype(str)
-
-        # Customer Segmentation
-        def segment_customers(rfm):
-            if rfm['R_Score'] >= 4 and rfm['F_Score'] >= 4 and rfm['M_Score'] >= 4:
-                return 'Champions'
-            elif rfm['R_Score'] >= 3 and rfm['F_Score'] >= 3 and rfm['M_Score'] >= 3:
-                return 'Loyal Customers'
-            elif rfm['R_Score'] >= 4 and rfm['F_Score'] <= 2:
-                return 'New Customers'
-            elif rfm['R_Score'] >= 3 and rfm['F_Score'] >= 2 and rfm['M_Score'] >= 2:
-                return 'Potential Loyalists'
-            elif rfm['R_Score'] >= 2 and rfm['F_Score'] >= 2 and rfm['M_Score'] >= 2:
-                return 'Need Attention'
-            elif rfm['R_Score'] <= 2 and rfm['F_Score'] >= 2 and rfm['M_Score'] >= 2:
-                return 'At Risk'
-            elif rfm['R_Score'] <= 2 and rfm['F_Score'] <= 2 and rfm['M_Score'] >= 2:
-                return 'Cannot Lose Them'
-            else:
-                return 'Hibernating'
-
-        rfm['Segment'] = rfm.apply(segment_customers, axis=1)
-
-        # RFM Statistics
+        # RFM Statistics using component
         st.markdown("##### RFM Statistics")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Customers", len(rfm))
-        with col2:
-            st.metric("Avg Recency", f"{rfm['Recency'].mean():.1f} days")
-        with col3:
-            st.metric("Avg Frequency", f"{rfm['Frequency'].mean():.1f}")
-        with col4:
-            st.metric("Avg Monetary", f"${rfm['Monetary'].mean():,.0f}")
+        rfm_metrics = {
+            "Total Customers": len(rfm),
+            "Avg Recency": f"{rfm['Recency'].mean():.1f} days",
+            "Avg Frequency": f"{rfm['Frequency'].mean():.1f}",
+            "Avg Monetary": f"${rfm['Monetary'].mean():,.0f}"
+        }
+        FormComponents.render_metric_cards(rfm_metrics, 4)
 
         # RFM Distributions (EDA only)
         st.markdown("##### RFM Distributions (EDA)")
-        bins = st.slider("Number of Bins", 5, 60, 20)
+        bins = FormComponents.render_bins_selector(20)
         rfm_reset = rfm.reset_index()
         col_a, col_b, col_c = st.columns(3)
         with col_a:
