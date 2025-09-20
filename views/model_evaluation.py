@@ -4,14 +4,9 @@ import altair as alt
 import pandas as pd
 import matplotlib.pyplot as plt
 from config.settings import PAGE_CONFIG
-from src.eda_utils import load_datasets, infer_join_keys, merge_datasets
-from src.data_processing_eda import compute_rfm
-from src.rfm_segmentation import (
-    plot_segment_distribution,
-    plot_cluster_treemap,
-    plot_pairplot,
-    plot_cluster_boxplots,
-)
+from src.customer_segmentation_service import CustomerSegmentationService
+from components import Footer
+from src.evaluate_core import EvaluateCore
 
 def show():
     """Display the Model Evaluation page"""
@@ -27,74 +22,57 @@ def show():
         st.markdown("- **Rule-based segmentation (RFM scores)**: Customers are grouped using thresholds on recency, frequency, and monetary values.")
         st.markdown("- **KMeans clustering**: A machine learning algorithm that automatically finds groups of similar customers.")
 
-    # Load data as in EDA
-    try:
-        transactions_file = getattr(st.session_state, "upload_transactions", None)
-        products_file = getattr(st.session_state, "upload_products", None)
-        df_tx, df_pd, _, _ = load_datasets(transactions_file, products_file)
-    except Exception as e:
-        st.error(f"Failed to load datasets: {e}")
-        return
-
-    # Build merged for RFM
-    left_key, right_key = infer_join_keys(df_tx, df_pd)
-    try:
-        merged = merge_datasets(df_tx, df_pd, left_key, right_key, "inner")
-    except Exception as e:
-        st.error(f"Merge failed: {e}")
-        return
-
-    # Validate columns
-    date_col = "Date" if "Date" in merged.columns else ("date" if "date" in merged.columns else None)
-    customer_col = "Member_number" if "Member_number" in merged.columns else ("member_number" if "member_number" in merged.columns else None)
-    if not date_col or not customer_col or "amount" not in merged.columns:
-        st.warning("Required columns for modeling not found (date, customer, amount).")
-        return
-
-    merged[date_col] = pd.to_datetime(merged[date_col], errors="coerce")
-    merged = merged.dropna(subset=[date_col, customer_col])
-
-    # Build RFM using existing utility: one transaction = unique (customer, date)
-    # Ensure column names match expected format
-    merged_rfm = merged.copy()
-    merged_rfm = merged_rfm.rename(columns={
-        customer_col: 'member_number', 
-        date_col: 'date'
-    })
+    # Check if files are uploaded, use default if not
+    transactions_file = getattr(st.session_state, "upload_transactions", None)
+    products_file = getattr(st.session_state, "upload_products", None)
     
-    # Add items column if not present (needed for transaction aggregation)
-    if 'items' not in merged_rfm.columns:
-        # Try to find items column with different names
-        items_col = None
-        for col in merged_rfm.columns:
-            if 'item' in col.lower():
-                items_col = col
-                break
-        if items_col:
-            merged_rfm['items'] = merged_rfm[items_col]
+    # Initialize service and load data
+    try:
+        service = CustomerSegmentationService()
+        
+        # Load and prepare data
+        data_prep = service.load_and_prepare_data(transactions_file, products_file)
+        if data_prep['status'] != 'success':
+            st.error(f"Data preparation failed: {data_prep.get('error', 'Unknown error')}")
+            return
+        
+        merged = data_prep['merged_df']
+        merged_rfm = data_prep['merged_rfm_df']
+        
+        # Perform RFM analysis
+        rfm_analysis = service.perform_rfm_analysis(merged_rfm)
+        if rfm_analysis['status'] != 'success':
+            st.error(f"RFM analysis failed: {rfm_analysis.get('error', 'Unknown error')}")
+            return
+        
+        rfm = rfm_analysis['rfm_df']
+        
+        # Status messages with file source info
+        if transactions_file is None and products_file is None:
+            st.info("📁 Using default files from data/raw/")
         else:
-            # If no items column found, assume 1 item per row
-            merged_rfm['items'] = 1
-    
-    rfm = compute_rfm(
-        merged_rfm,
-        customer_col='member_number',
-        date_col='date',
-        amount_col='amount'
-    )
-    rfm = rfm.set_index('member_number')
-
-    # RFM quantile scores
-    rfm['R_Score'] = pd.qcut(rfm['Recency'], 5, labels=[5,4,3,2,1], duplicates='drop')
-    rfm['F_Score'] = pd.qcut(rfm['Frequency'].rank(method='first'), 5, labels=[1,2,3,4,5], duplicates='drop')
-    rfm['M_Score'] = pd.qcut(rfm['Monetary'], 5, labels=[1,2,3,4,5], duplicates='drop')
-    rfm[['R_Score','F_Score','M_Score']] = rfm[['R_Score','F_Score','M_Score']].astype(int)
-
-    # KPI cards values
-    total_revenue = float(merged['amount'].sum())
-    customers_count = int(len(rfm))
-    avg_recency_days = float(rfm['Recency'].mean()) if not rfm.empty else 0.0
-    avg_frequency_val = float(rfm['Frequency'].mean()) if not rfm.empty else 0.0
+            # Show specific file names
+            tx_name = "Default" if transactions_file is None else (
+                transactions_file['name'] if isinstance(transactions_file, dict) else 
+                getattr(transactions_file, 'name', 'Unknown')
+            )
+            pd_name = "Default" if products_file is None else (
+                products_file['name'] if isinstance(products_file, dict) else 
+                getattr(products_file, 'name', 'Unknown')
+            )
+            st.info(f"📤 Using uploaded files: {tx_name} • {pd_name}")
+        
+        # Calculate KPIs using service
+        kpis = service.calculate_kpis(merged, rfm)
+        if kpis['status'] != 'success':
+            st.error(f"KPI calculation failed: {kpis.get('error', 'Unknown error')}")
+            return
+        
+        kpi_data = kpis['kpi_data']
+        
+    except Exception as e:
+        st.error(f"Service initialization failed: {e}")
+        return
 
     # Tabs: Rules vs KMeans
     tab_rules, tab_kmeans = st.tabs(["Rule-Based Segmentation", "K-Means Clustering"]) 
@@ -144,7 +122,7 @@ def show():
             <div class="kpi-card">
                 <div class="kpi-icon">💰</div>
                 <div class="kpi-title">Total Revenue</div>
-                <div class="kpi-value">${total_revenue:,.0f}</div>
+                <div class="kpi-value">${kpi_data['total_revenue']:,.0f}</div>
             </div>
             """, unsafe_allow_html=True)
         with k2:
@@ -152,7 +130,7 @@ def show():
             <div class="kpi-card">
                 <div class="kpi-icon">👥</div>
                 <div class="kpi-title">Customers</div>
-                <div class="kpi-value">{customers_count:,}</div>
+                <div class="kpi-value">{kpi_data['total_users']:,}</div>
             </div>
             """, unsafe_allow_html=True)
         with k3:
@@ -160,7 +138,7 @@ def show():
             <div class="kpi-card">
                 <div class="kpi-icon">🗓️</div>
                 <div class="kpi-title">Avg Recency</div>
-                <div class="kpi-value">{avg_recency_days:,.1f} days</div>
+                <div class="kpi-value">{kpi_data['avg_recency']:,.1f} days</div>
             </div>
             """, unsafe_allow_html=True)
         with k4:
@@ -168,7 +146,7 @@ def show():
             <div class="kpi-card">
                 <div class="kpi-icon">📈</div>
                 <div class="kpi-title">Avg Frequency</div>
-                <div class="kpi-value">{avg_frequency_val:,.1f}</div>
+                <div class="kpi-value">{kpi_data['avg_frequency']:,.1f}</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -185,37 +163,20 @@ def show():
             st.markdown("- 🚫 **Can’t Lose Them** – High Monetary before, but haven’t purchased recently; high value but disengaged.")
             st.markdown("- 😴 **Hibernating** – Least engaged group; rarely purchase and spend little.")
             st.markdown("- 👀 **Need Attention** – Do not fit other categories but show some activity; can be nurtured.")
-        def segment_customers_rules(row):
-            if row['R_Score'] >= 4 and row['F_Score'] >= 4 and row['M_Score'] >= 4:
-                return 'Champions'
-            if row['R_Score'] >= 3 and row['F_Score'] >= 3 and row['M_Score'] >= 3:
-                return 'Loyal Customers'
-            if row['R_Score'] >= 4 and row['F_Score'] <= 2:
-                return 'New Customers'
-            if row['R_Score'] >= 3 and row['F_Score'] >= 2 and row['M_Score'] >= 2:
-                return 'Potential Loyalists'
-            if row['R_Score'] >= 2 and row['F_Score'] >= 2 and row['M_Score'] >= 2:
-                return 'Need Attention'
-            if row['R_Score'] <= 2 and row['F_Score'] >= 2 and row['M_Score'] >= 2:
-                return 'At Risk'
-            if row['R_Score'] <= 2 and row['F_Score'] <= 2 and row['M_Score'] >= 2:
-                return "Can't Lose Them"
-            return 'Hibernating'
-
-        rfm_rules = rfm.copy()
-        rfm_rules['Segment'] = rfm_rules.apply(segment_customers_rules, axis=1)
+        # Apply rule-based segmentation using service
+        rfm_rules = rfm.copy()  # RFM analysis already includes segmentation
 
         # Table first
         st.markdown("Example segmentation results:")
-        st.dataframe(rfm_rules[['Recency','Frequency','Monetary','Segment']].head(5), use_container_width=True)
+        st.dataframe(rfm_rules[['Recency','Frequency','Monetary','Segment']].head(5), width='stretch')
         
         # Chart second
-        fig = plot_segment_distribution(rfm_rules.reset_index())
-        st.pyplot(fig, use_container_width=True)
+        fig = EvaluateCore.plot_segment_distribution(rfm_rules.reset_index())
+        st.pyplot(fig, width='stretch')
 
         # Treemap for rule-based (use Segment as groups)
-        treemap_fig_rules = plot_cluster_treemap(rfm_rules.reset_index().rename(columns={'Segment':'Cluster'}), 'Cluster')
-        st.pyplot(treemap_fig_rules, use_container_width=True)
+        treemap_fig_rules = EvaluateCore.plot_cluster_treemap(rfm_rules.reset_index().rename(columns={'Segment':'Cluster'}), 'Cluster')
+        st.pyplot(treemap_fig_rules, width='stretch')
 
         # Optional visualizations dropdown
         viz_option_rules = st.selectbox(
@@ -224,17 +185,17 @@ def show():
             index=0,
         )
         if viz_option_rules == "Boxplots by Segment":
-            fig_box = plot_cluster_boxplots(
+            fig_box = EvaluateCore.plot_cluster_boxplots(
                 rfm_rules.reset_index().rename(columns={"Segment": "Cluster"}),
                 "Cluster",
             )
-            st.pyplot(fig_box, use_container_width=True)
+            st.pyplot(fig_box, width='stretch')
         elif viz_option_rules == "Pairplot by Segment":
-            fig_pair = plot_pairplot(
+            fig_pair = EvaluateCore.plot_pairplot(
                 rfm_rules.reset_index().rename(columns={"Segment": "Cluster"}),
                 "Cluster",
             )
-            st.pyplot(fig_pair, use_container_width=True)
+            st.pyplot(fig_pair, width='stretch')
 
     with tab_kmeans:
         st.markdown("#### K-Means Clustering on RFM")
@@ -245,55 +206,47 @@ def show():
             st.markdown("  1. **Elbow Method** – diminishing returns in inertia.")
             st.markdown("  2. **Silhouette Score** – separation quality (closer to 1 is better).")
         try:
-            from sklearn.preprocessing import StandardScaler
-            from sklearn.cluster import KMeans
-            from sklearn.metrics import silhouette_score, davies_bouldin_score, silhouette_samples
-        except Exception as e:
-            st.error(f"scikit-learn is required for K-Means: {e}")
-        else:
-            features = rfm[['Recency','Frequency','Monetary']].copy()
-            scaler = StandardScaler()
-            X = scaler.fit_transform(features)
-
-            # Diagnostics: elbow & silhouette across k
-            ks = list(range(2, 11))
-            inertias, silhouettes = [], []
-            for k_ in ks:
-                km_ = KMeans(n_clusters=k_, n_init=10, random_state=42)
-                labels_ = km_.fit_predict(X)
-                inertias.append(float(km_.inertia_))
-                try:
-                    silhouettes.append(float(silhouette_score(X, labels_)))
-                except Exception:
-                    silhouettes.append(float('nan'))
+            # Evaluate clustering quality using service
+            evaluation = service.evaluate_clustering_quality(rfm)
+            if evaluation['status'] != 'success':
+                st.error(f"Clustering evaluation failed: {evaluation.get('error', 'Unknown error')}")
+                return
+            
+            evaluation_results = evaluation['evaluation_results']
+            
+            # Display elbow and silhouette plots
             c1p, c2p = st.columns(2)
             with c1p:
                 fig1, ax1 = plt.subplots(figsize=(6,4))
-                ax1.plot(ks, inertias, marker='o')
+                ax1.plot(evaluation_results['k_range'], evaluation_results['inertias'], marker='o')
                 ax1.set_title('Elbow Method (Inertia vs. k)')
                 ax1.set_xlabel('Number of Clusters (k)')
                 ax1.set_ylabel('Inertia')
                 ax1.grid(True, linestyle='--', alpha=0.4)
-                st.pyplot(fig1, use_container_width=True)
+                st.pyplot(fig1, width='stretch')
             with c2p:
                 fig2, ax2 = plt.subplots(figsize=(6,4))
-                ax2.plot(ks, silhouettes, marker='o', color='#2ca02c')
+                ax2.plot(evaluation_results['k_range'], evaluation_results['silhouettes'], marker='o', color='#2ca02c')
                 ax2.set_title('Silhouette Score vs. k')
                 ax2.set_xlabel('Number of Clusters (k)')
                 ax2.set_ylabel('Silhouette Score')
                 ax2.grid(True, linestyle='--', alpha=0.4)
-                st.pyplot(fig2, use_container_width=True)
+                st.pyplot(fig2, width='stretch')
 
             # Default k = 4 (can be adjusted by user)
             k = st.slider("Select number of clusters (k)", 2, 10, 4)
 
-            model = KMeans(n_clusters=k, n_init=10, random_state=42)
-            labels = model.fit_predict(X)
-            rfm_km = rfm.copy()
-            rfm_km['Cluster'] = labels.astype(int)
-
-            sil = silhouette_score(X, labels)
-            dbi = davies_bouldin_score(X, labels)
+            # Perform K-Means clustering using service
+            clustering = service.perform_kmeans_clustering(rfm.copy(), n_clusters=k)
+            if clustering['status'] != 'success':
+                st.error(f"K-Means clustering failed: {clustering.get('error', 'Unknown error')}")
+                return
+            
+            rfm_km = clustering['rfm_clustered_df']
+            clustering_metrics = clustering['clustering_metrics']
+            
+            sil = clustering_metrics['silhouette_score']
+            dbi = clustering_metrics['davies_bouldin_score']
             
             # Custom CSS for metric cards
             st.markdown("""
@@ -338,7 +291,7 @@ def show():
                 </div>
                 """, unsafe_allow_html=True)
 
-            st.markdown("##### ✨ Cluster Visualization (Improved)")
+            st.markdown("##### Cluster Visualization")
 
             cluster_avg = rfm_km.groupby('Cluster')[['Recency','Frequency','Monetary']].mean().reset_index()
             recency_median = rfm_km['Recency'].median()
@@ -419,10 +372,9 @@ def show():
             st.altair_chart(final_chart, use_container_width=True)
 
             
-            # Treemap - Second line
-            st.markdown("##### Cluster Size Distribution")
-            treemap_fig = plot_cluster_treemap(rfm_km.reset_index(), 'Cluster')
-            st.pyplot(treemap_fig, use_container_width=True)
+            # Treemap - Second line (header removed per request)
+            treemap_fig = EvaluateCore.plot_cluster_treemap(rfm_km.reset_index(), 'Cluster')
+            st.pyplot(treemap_fig, width='stretch')
 
             # Optional visualizations dropdown
             viz_option_km = st.selectbox(
@@ -431,14 +383,22 @@ def show():
                 index=0,
             )
             if viz_option_km == "Boxplots by Cluster":
-                fig_box_km = plot_cluster_boxplots(rfm_km.reset_index(), "Cluster")
-                st.pyplot(fig_box_km, use_container_width=True)
+                fig_box_km = EvaluateCore.plot_cluster_boxplots(rfm_km.reset_index(), "Cluster")
+                st.pyplot(fig_box_km, width='stretch')
             elif viz_option_km == "Pairplot by Cluster":
-                fig_pair_km = plot_pairplot(rfm_km.reset_index(), "Cluster")
-                st.pyplot(fig_pair_km, use_container_width=True)
+                fig_pair_km = EvaluateCore.plot_pairplot(rfm_km.reset_index(), "Cluster")
+                st.pyplot(fig_pair_km, width='stretch')
             elif viz_option_km == "Silhouette by Cluster":
                 try:
-                    sil_samples = silhouette_samples(X, labels)
+                    from sklearn.preprocessing import StandardScaler
+                    from sklearn.metrics import silhouette_samples
+                    # Rebuild the feature matrix consistently (standard scaling)
+                    features = rfm[['Recency','Frequency','Monetary']].copy()
+                    scaler_tmp = StandardScaler()
+                    X_tmp = scaler_tmp.fit_transform(features)
+                    labels_tmp = rfm_km['Cluster'].to_numpy()
+
+                    sil_samples = silhouette_samples(X_tmp, labels_tmp)
                     rfm_km['_silhouette'] = sil_samples
                     per_cluster_sil = (
                         rfm_km.groupby('Cluster')['_silhouette'].mean().reset_index()
@@ -450,7 +410,11 @@ def show():
                     ax_sil.set_xlabel('Cluster')
                     ax_sil.set_ylabel('Average Silhouette Score')
                     ax_sil.grid(True, axis='y', linestyle='--', alpha=0.3)
-                    st.pyplot(fig_sil, use_container_width=True)
-                except Exception:
-                    pass
-
+                    st.pyplot(fig_sil, width='stretch')
+                except Exception as e:
+                    st.warning(f"Could not compute silhouette chart: {e}")
+        except Exception as e:
+            st.error(f"K-Means clustering failed: {e}")
+    
+    # Footer
+    Footer.render()

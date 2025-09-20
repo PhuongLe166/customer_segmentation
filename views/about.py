@@ -1,5 +1,6 @@
 import streamlit as st
 from config.settings import PAGE_CONFIG
+from components import Footer
 
 def show():
     """Display the About page"""
@@ -8,7 +9,6 @@ def show():
     st.markdown(f"# {PAGE_CONFIG['about']['title']}")
     st.markdown(f"*{PAGE_CONFIG['about']['description']}*")
     st.markdown("---")
-    
     # Instructor
     st.markdown("## Instructor")
     st.markdown("**MSc. Khuat Thuy Phuong**")
@@ -116,6 +116,31 @@ def show():
     """, unsafe_allow_html=True)
     st.markdown("---")
     
+    # Repository Structure (moved below Pipeline)
+    st.markdown("## Repository Structure")
+    st.markdown("""
+    ```
+    customer_segmentation/
+    ├─ app.py                     # Streamlit entry
+    ├─ requirements.txt          # Python deps
+    ├─ assets/                   # Images, styles
+    ├─ data/
+    │  ├─ raw/                  # Input CSVs
+    │  └─ processed/            # Cleaned/intermediate
+    ├─ components/              # Reusable UI components
+    ├─ views/                   # Page definitions (EDA, Dashboard, About,...)
+    ├─ src/                     # Core logic
+    │  ├─ eda_core.py          # EDA helpers
+    │  ├─ preprocess_core.py   # RFM + KPIs
+    │  ├─ build_model_core.py  # KMeans & evaluation
+    │  └─ evaluate_core.py     # Plots & diagnostics
+    ├─ config/
+    │  └─ settings.py          # Page config & constants
+    └─ notebooks/              # Exploration notebooks
+    ```
+    """)
+    st.markdown("---")
+    
     # Tech Stack
     st.markdown("## Tech Stack")
     st.markdown("- Python, Pandas, NumPy")
@@ -123,4 +148,6 @@ def show():
     st.markdown("- PySpark (large-scale data processing)")
     st.markdown("- Streamlit (GUI)")
     st.markdown("- Matplotlib/Seaborn (EDA & Visualization)")
-
+    
+    # Footer
+    Footer.render()
