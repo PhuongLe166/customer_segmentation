@@ -425,7 +425,7 @@ def show():
             """
             <style>
               .strat-grid { display:grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap:12px; }
-              .strat-card { border:1px solid #e5e7eb; border-radius:14px; padding:12px 14px; box-shadow:0 1px 2px rgba(16,24,40,.06); min-height: 180px; display:flex; flex-direction:column; overflow:auto; }
+              .strat-card { border:1px solid #e5e7eb; border-radius:14px; padding:12px 14px; box-shadow:0 1px 2px rgba(16,24,40,.06); min-height: 260px; display:flex; flex-direction:column; overflow:auto; }
               .strat-title { font-weight:800; margin:0 0 8px; font-size:16px; color:#0f172a; }
               .strat-card ul { margin:8px 0 0 18px; padding:0; }
               .strat-card li { margin:4px 0; }

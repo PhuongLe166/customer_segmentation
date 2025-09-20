@@ -819,7 +819,7 @@ class EvaluateCore:
     
     @staticmethod
     def plot_cluster_boxplots(df_rfm: pd.DataFrame, cluster_col: str):
-        """Boxplots for Recency, Frequency, Monetary by cluster with legacy styling."""
+        """Boxplots for Recency, Frequency, Monetary by cluster with legacy styling and readable x labels."""
         import matplotlib.pyplot as plt
         import seaborn as sns
         
@@ -827,7 +827,7 @@ class EvaluateCore:
         sns.set_theme(style="whitegrid", context="notebook")
         palette = sns.color_palette("Set2")
         
-        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        fig, axes = plt.subplots(1, 3, figsize=(20, 6))
         rfm_cols = ['Recency', 'Frequency', 'Monetary']
         titles = [
             f'Recency by {cluster_col}',
@@ -858,10 +858,16 @@ class EvaluateCore:
             axes[i].set_title(titles[i], fontsize=12, weight="bold")
             axes[i].set_xlabel("")
             axes[i].set_ylabel(col)
-            axes[i].tick_params(axis='x', rotation=35)
+            # Rotate x labels vertically to avoid overlap
+            for tick in axes[i].get_xticklabels():
+                tick.set_rotation(90)
+                tick.set_ha('right')
+                tick.set_text(tick.get_text().replace('_', ' ').replace('.', ' '))
             axes[i].grid(True, axis='y', linestyle='--', alpha=0.35)
         
-        fig.tight_layout()
+        # Leave extra space at the bottom for rotated labels
+        fig.tight_layout(rect=(0, 0.12, 1, 0.95))
+        fig.subplots_adjust(bottom=0.28)
         return fig
     
     @staticmethod
@@ -881,10 +887,23 @@ class EvaluateCore:
             plot_kws=dict(alpha=0.7, s=22, edgecolor='white', linewidth=0.4),
             diag_kws=dict(fill=True, alpha=0.6),
         )
-        # Make titles consistent with legacy look
+        # Move legend outside to avoid overlapping the charts
+        try:
+            if hasattr(grid, '_legend') and grid._legend is not None:
+                grid._legend.remove()
+            grid.add_legend(
+                title=cluster_col,
+                bbox_to_anchor=(1.02, 0.5),
+                loc='center left',
+                borderaxespad=0.0,
+                frameon=True
+            )
+        except Exception:
+            pass
+        # Adjust layout to make room for external legend and title
         grid.fig.suptitle("RFM Pairplot by Segment", fontsize=14, fontweight='bold')
-        grid.fig.tight_layout()
-        grid.fig.subplots_adjust(top=0.93)
+        grid.fig.tight_layout(rect=(0, 0, 0.82, 0.92))
+        grid.fig.subplots_adjust(right=0.82, top=0.92)
         return grid.fig
     
     @staticmethod
