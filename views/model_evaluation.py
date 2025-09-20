@@ -138,7 +138,7 @@ def show():
             <div class="kpi-card">
                 <div class="kpi-icon">🗓️</div>
                 <div class="kpi-title">Avg Recency</div>
-                <div class="kpi-value">{kpi_data['avg_recency']:,.1f} days</div>
+                <div class="kpi-value">{kpi_data['avg_recency']:,.1f}</div>
             </div>
             """, unsafe_allow_html=True)
         with k4:
