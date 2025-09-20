@@ -9,7 +9,6 @@ def show():
     st.markdown(f"# {PAGE_CONFIG['about']['title']}")
     st.markdown(f"*{PAGE_CONFIG['about']['description']}*")
     st.markdown("---")
-    
     # Instructor
     st.markdown("## Instructor")
     st.markdown("**MSc. Khuat Thuy Phuong**")
@@ -115,6 +114,31 @@ def show():
       <div class="step"><div class="num">5</div><div>Dashboard & Report</div></div>
     </div>
     """, unsafe_allow_html=True)
+    st.markdown("---")
+    
+    # Repository Structure (moved below Pipeline)
+    st.markdown("## Repository Structure")
+    st.markdown("""
+    ```
+    customer_segmentation/
+    ├─ app.py                     # Streamlit entry
+    ├─ requirements.txt          # Python deps
+    ├─ assets/                   # Images, styles
+    ├─ data/
+    │  ├─ raw/                  # Input CSVs
+    │  └─ processed/            # Cleaned/intermediate
+    ├─ components/              # Reusable UI components
+    ├─ views/                   # Page definitions (EDA, Dashboard, About,...)
+    ├─ src/                     # Core logic
+    │  ├─ eda_core.py          # EDA helpers
+    │  ├─ preprocess_core.py   # RFM + KPIs
+    │  ├─ build_model_core.py  # KMeans & evaluation
+    │  └─ evaluate_core.py     # Plots & diagnostics
+    ├─ config/
+    │  └─ settings.py          # Page config & constants
+    └─ notebooks/              # Exploration notebooks
+    ```
+    """)
     st.markdown("---")
     
     # Tech Stack
