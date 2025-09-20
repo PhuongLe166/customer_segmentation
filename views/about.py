@@ -1,5 +1,6 @@
 import streamlit as st
 from config.settings import PAGE_CONFIG
+from components import Footer
 
 def show():
     """Display the About page"""
@@ -123,4 +124,6 @@ def show():
     st.markdown("- PySpark (large-scale data processing)")
     st.markdown("- Streamlit (GUI)")
     st.markdown("- Matplotlib/Seaborn (EDA & Visualization)")
-
+    
+    # Footer
+    Footer.render()

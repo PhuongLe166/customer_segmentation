@@ -7,6 +7,7 @@ from .form_components import FormComponents
 from .charts import *
 from .navigation import *
 from .sidebar import *
+from .footer import Footer
 
 __all__ = [
     'KPICards',

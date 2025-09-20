@@ -1,5 +1,6 @@
 import streamlit as st
 from config.settings import PAGE_CONFIG
+from components import Footer
 
 def show():
     """Display the Introduction page"""
@@ -30,3 +31,5 @@ def show():
     except Exception:
         pass
 
+    # Footer
+    Footer.render()

@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from config.settings import PAGE_CONFIG
 from src.customer_segmentation_service import CustomerSegmentationService
+from components import Footer
 from src.evaluate_core import EvaluateCore
 
 def show():
@@ -407,4 +408,6 @@ def show():
                     pass
         except Exception as e:
             st.error(f"K-Means clustering failed: {e}")
-
+    
+    # Footer
+    Footer.render()

@@ -4,7 +4,7 @@ import pandas as pd
 import altair as alt
 from config.settings import PAGE_CONFIG
 from src.customer_segmentation_service import CustomerSegmentationService
-from components import KPICards, ChartComponents, TableComponents, FormComponents
+from components import KPICards, ChartComponents, TableComponents, FormComponents, Footer
 
 def show():
     """Display the BI Dashboard page"""
@@ -104,7 +104,6 @@ def show():
         st.info(f"📤 Using uploaded files: {tx_name} • {pd_name}")
     
     # Key Performance Indicators Section (including RFM)
-    st.markdown("<div class='section-title'>Key Performance Indicators</div>", unsafe_allow_html=True)
     
     # Calculate KPIs using service
     kpis = service.calculate_kpis(merged, rfm)
@@ -184,4 +183,7 @@ def show():
     
     # Render segment table using component
     TableComponents.render_segment_table(display_seg, "Recency, Frequency and Monetary KPIs per Segment")
+    
+    # Footer
+    Footer.render()
     

@@ -5,7 +5,7 @@ from config.settings import PAGE_CONFIG
 import pandas as pd
 from pathlib import Path
 from src.customer_segmentation_service import CustomerSegmentationService
-from components import KPICards, ChartComponents, TableComponents, FormComponents
+from components import KPICards, ChartComponents, TableComponents, FormComponents, Footer
 
 def ensure_amount_column(df):
     """Ensure amount column exists by calculating from items * price if needed."""
@@ -643,5 +643,8 @@ def show():
         # Note: Modeling & Evaluation moved to Model Evaluation page
 
         # Note: Removed Customer Segments Distribution, RFM Score Distribution, and Top Customers by Segment as requested
+
+    # Footer
+    Footer.render()
 
 
