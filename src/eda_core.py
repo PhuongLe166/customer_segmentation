@@ -25,6 +25,18 @@ class EDACore:
     """Core EDA operations for data exploration and analysis with enhanced error handling."""
     
     @staticmethod
+    @st.cache_data(show_spinner=False, ttl=3600)
+    def _cached_read_csv_from_path(path: str) -> pd.DataFrame:
+        """Cached CSV reader for file paths."""
+        return pd.read_csv(path)
+
+    @staticmethod
+    @st.cache_data(show_spinner=False, ttl=3600)
+    def _cached_read_csv_from_bytes(content: bytes) -> pd.DataFrame:
+        """Cached CSV reader for uploaded file bytes."""
+        return pd.read_csv(io.BytesIO(content))
+
+    @staticmethod
     def load_and_validate_data(
         transactions_file: Optional[Union[str, Path]] = None, 
         products_file: Optional[Union[str, Path]] = None
@@ -538,35 +550,44 @@ class EDACore:
         # Handle file upload objects from session state
         if transactions_file is None:
             tx_src = str(default_tx)
-            df_tx = EDACore.read_csv(tx_src)
+            df_tx = EDACore._cached_read_csv_from_path(tx_src)
         else:
             # Check if it's a file upload object (has .name attribute)
             if hasattr(transactions_file, 'name'):
                 tx_src = f"Uploaded: {transactions_file.name}"
-                df_tx = EDACore.read_csv(transactions_file)
+                # Use bytes cache if content available, else fallback to direct read
+                try:
+                    content = transactions_file.getvalue()  # type: ignore[attr-defined]
+                    df_tx = EDACore._cached_read_csv_from_bytes(content)
+                except Exception:
+                    df_tx = EDACore.read_csv(transactions_file)
             # Check if it's a file content dict from session state
             elif isinstance(transactions_file, dict) and 'content' in transactions_file:
                 tx_src = f"Uploaded: {transactions_file['name']}"
-                df_tx = EDACore.read_csv(io.BytesIO(transactions_file['content']))
+                df_tx = EDACore._cached_read_csv_from_bytes(transactions_file['content'])
             else:
                 tx_src = str(transactions_file)
-                df_tx = EDACore.read_csv(tx_src)
+                df_tx = EDACore._cached_read_csv_from_path(tx_src)
         
         if products_file is None:
             pd_src = str(default_pd)
-            df_pd = EDACore.read_csv(pd_src)
+            df_pd = EDACore._cached_read_csv_from_path(pd_src)
         else:
             # Check if it's a file upload object (has .name attribute)
             if hasattr(products_file, 'name'):
                 pd_src = f"Uploaded: {products_file.name}"
-                df_pd = EDACore.read_csv(products_file)
+                try:
+                    content = products_file.getvalue()  # type: ignore[attr-defined]
+                    df_pd = EDACore._cached_read_csv_from_bytes(content)
+                except Exception:
+                    df_pd = EDACore.read_csv(products_file)
             # Check if it's a file content dict from session state
             elif isinstance(products_file, dict) and 'content' in products_file:
                 pd_src = f"Uploaded: {products_file['name']}"
-                df_pd = EDACore.read_csv(io.BytesIO(products_file['content']))
+                df_pd = EDACore._cached_read_csv_from_bytes(products_file['content'])
             else:
                 pd_src = str(products_file)
-                df_pd = EDACore.read_csv(pd_src)
+                df_pd = EDACore._cached_read_csv_from_path(pd_src)
         
         return df_tx, df_pd, tx_src, pd_src
     
